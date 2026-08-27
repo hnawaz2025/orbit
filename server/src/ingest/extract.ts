@@ -64,33 +64,43 @@ export interface ExtractInput {
 }
 
 /**
- * Structural checks that a prompt instruction alone cannot guarantee.
+ * Dates are the most hallucination-prone field in the extraction.
  *
- * The date-window check is the important one. Dates are by far the most
- * hallucination-prone field -- a model reading "2:00 PM" with no date attached
- * will happily attach today's -- and an out-of-window timestamp is a mechanical
- * signal that the value was reasoned about rather than read. Rejecting the
- * whole extraction and retrying is right: the correction note names the offence,
- * and the second attempt usually omits the time instead of inventing one.
+ * A model reading "2:00 PM" with no date attached will happily supply one, and
+ * an out-of-window timestamp is a mechanical signal that the value was reasoned
+ * about rather than read off the page.
+ *
+ * This began as a hard validator that failed the whole chunk. That was wrong at
+ * a cost of about twenty sessions per occurrence: a single roundtable dated
+ * three days after the conference ended discarded every correctly-parsed entity
+ * beside it, twice, and then dropped the chunk. The offence is one field on one
+ * entity, and the blast radius should match.
+ *
+ * So it is soft now. The first failure retries with a correction note naming
+ * the offending value, which sometimes gets a clean answer. If the second
+ * attempt still carries a bad date, the extraction is accepted and the bad
+ * timestamps are stripped by sanitiseTimes below -- an entity with a title,
+ * speaker and room but no time is a useful recommendation; a missing entity is
+ * not.
  */
-function buildValidator(input: ExtractInput) {
+function buildDateCheck(input: ExtractInput) {
   const { startsAt, endsAt } = input.eventWindow;
   // A day of slack each side covers timezone edges and pre-event workshops
   // without admitting a date from another year.
   const floor = startsAt.getTime() - 24 * 60 * 60 * 1000;
   const ceiling = endsAt.getTime() + 24 * 60 * 60 * 1000;
 
-  return (parsed: z.infer<typeof extractionSchema>) => {
+  const isOutOfWindow = (raw: string): boolean => {
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return true;
+    return parsed.getTime() < floor || parsed.getTime() > ceiling;
+  };
+
+  const check = (parsed: { entities: { title: string; startsAt?: string; endsAt?: string }[] }) => {
     for (const entity of parsed.entities) {
       for (const field of ["startsAt", "endsAt"] as const) {
         const raw = entity[field];
-        if (!raw) continue;
-
-        const parsedDate = new Date(raw);
-        if (Number.isNaN(parsedDate.getTime())) {
-          throw new Error(`Entity "${entity.title}" has an unparseable ${field}: ${raw}`);
-        }
-        if (parsedDate.getTime() < floor || parsedDate.getTime() > ceiling) {
+        if (raw && isOutOfWindow(raw)) {
           throw new Error(
             `Entity "${entity.title}" has ${field}=${raw}, which is outside the event window ` +
               `(${startsAt.toISOString()} to ${endsAt.toISOString()}). If the page did not state a date, omit the time instead of inferring one.`
@@ -99,6 +109,8 @@ function buildValidator(input: ExtractInput) {
       }
     }
   };
+
+  return { check, isOutOfWindow };
 }
 
 /**
@@ -122,6 +134,31 @@ export async function extractEntities(input: ExtractInput): Promise<ExtractedEnt
     .filter(Boolean)
     .join("\n");
 
+  const { check: checkDates, isOutOfWindow } = buildDateCheck(input);
+
+  /**
+   * A substantial chunk that yields nothing is usually a model lapse, not an
+   * empty page.
+   *
+   * Observed directly: a 6000-character chunk carrying 27 sessions -- each with
+   * a title, a speaker and a labelled "Location:" -- came back with zero
+   * entities and logged "0 entities" as though that were an answer. Silent loss
+   * of a full chunk is the worst failure mode in this pipeline, because a thin
+   * corpus looks exactly like a thorough one from the outside.
+   *
+   * Soft, so a genuinely empty chunk -- a footer, a nav-only tail -- costs one
+   * extra call and is then accepted. Cheap insurance against losing a
+   * twenty-seventh of the programme without noticing.
+   */
+  const checkNotSilentlyEmpty = (parsed: { entities: unknown[] }) => {
+    const SUBSTANTIAL_CHARS = 2000;
+    if (parsed.entities.length === 0 && text.length > SUBSTANTIAL_CHARS) {
+      throw new Error(
+        `Returned no entities for ${text.length} characters of page text. If this section genuinely lists no sessions, people, or companies, return an empty list again; otherwise extract what is there.`
+      );
+    }
+  };
+
   const result = await callForJson(
     extractionSchema,
     (correctionNote) =>
@@ -132,25 +169,50 @@ export async function extractEntities(input: ExtractInput): Promise<ExtractedEnt
         temperature: 0,
         model: input.model,
       }),
-    buildValidator(input)
+    undefined,
+    // Both soft: each retries once with the specific problem named, then
+    // accepts rather than discarding a chunk. See buildDateCheck.
+    (parsed) => {
+      checkNotSilentlyEmpty(parsed);
+      checkDates(parsed);
+    }
   );
 
   const kept: ExtractedEntity[] = [];
   let dropped = 0;
+  let timesStripped = 0;
 
   for (const entity of result.entities) {
     if (entity.confidence < INGEST_CONFIDENCE_FLOOR) {
       dropped++;
       continue;
     }
+
+    // Strip any timestamp that survived the retry still out of window. Only the
+    // time is discarded, never the entity: a session with a room and a speaker
+    // but no time still tells an attendee where to find it, and the schema
+    // treats a null time as "not time-bound" rather than as an error.
+    let { startsAt, endsAt } = entity;
+    if (startsAt && isOutOfWindow(startsAt)) {
+      startsAt = undefined;
+      timesStripped++;
+    }
+    if (endsAt && isOutOfWindow(endsAt)) {
+      endsAt = undefined;
+      timesStripped++;
+    }
     // sourceUrl is stamped here rather than asked for: the model has no reason
     // to know it, and letting it echo one back is an invitation to attribute a
     // fact to a page it never read.
-    kept.push({ ...entity, sourceUrl });
+    kept.push({ ...entity, startsAt, endsAt, sourceUrl });
   }
 
   if (dropped > 0) {
     console.log(`  dropped ${dropped} low-confidence entities (floor ${INGEST_CONFIDENCE_FLOOR})`);
+  }
+
+  if (timesStripped > 0) {
+    console.log(`  stripped ${timesStripped} out-of-window timestamps (entities kept)`);
   }
 
   return kept;
