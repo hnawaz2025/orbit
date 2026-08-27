@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { prisma } from "../db";
 import { createGenericAdapter } from "./adapters/generic";
+import { embedEntities } from "./embed";
 import { persistEntities } from "./persist";
 import { findEvent } from "./sources";
 import type { ExtractedEntity } from "./types";
@@ -68,6 +69,16 @@ async function main() {
     return counts;
   }, {});
 
+  // Embedding is part of ingestion, not a separate chore. A corpus without
+  // vectors is not a partially-working corpus -- it is an unsearchable one, and
+  // leaving this to a second command means the failure shows up as an empty
+  // result list rather than as a stage that did not run.
+  console.log("\nembedding...");
+  const embedded = await embedEntities(definition.slug);
+  console.log(
+    `  embedded ${embedded.embedded}, unchanged ${embedded.skipped}, failed ${embedded.failed}`
+  );
+
   console.log("---");
   console.log(`written: ${result.written}   links: ${result.linked}`);
   console.log(`by kind: ${Object.entries(byKind).map(([k, n]) => `${k}=${n}`).join("  ")}`);
@@ -81,6 +92,16 @@ async function main() {
     console.warn(
       "\nWARNING: under 40% of entities have descriptions. Retrieval will be weak — " +
         "check whether the source pages actually render abstracts, or add a richer source."
+    );
+  }
+
+  // A row that reached the corpus but never got a vector is invisible to
+  // matching, which looks identical to it not being there at all. Worth saying
+  // out loud rather than leaving to be discovered from a thin result list.
+  if (embedded.failed > 0) {
+    console.warn(
+      `\nWARNING: ${embedded.failed} entities have no embedding and cannot be matched. ` +
+        "Re-run ingest to retry them."
     );
   }
 }
