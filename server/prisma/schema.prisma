@@ -79,7 +79,26 @@ model Entity {
   isDurable Boolean @default(false)
 
   tags      String[] @default([])
+  /// The page this came from. Every fact stays traceable -- and this is also
+  /// what scopes reconciliation, so a source that failed to fetch cannot retire
+  /// the entities it would have confirmed.
   sourceUrl String?
+
+  /// The last ingest run that found this entity still published at its source.
+  lastSeenAt DateTime @default(now())
+
+  /// Set when a run re-read this entity's source successfully and did not find
+  /// it: a cancelled session, a speaker who withdrew, a booth that pulled out.
+  ///
+  /// Soft rather than deleted, for two reasons. A retired entity may come back
+  /// -- agendas move sessions and reinstate them -- and un-retiring a row keeps
+  /// its embedding and its links instead of rebuilding them. And a
+  /// Recommendation already made should still resolve to the thing it named,
+  /// even after that thing is gone, or the organizer-facing history quietly
+  /// rewrites itself.
+  ///
+  /// Excluded from retrieval, so nothing retired can be recommended.
+  retiredAt DateTime?
 
   /// text-embedding-3-small, 1536 dims. Brute-forced in memory — at a few
   /// hundred entities per event that beats carrying a pgvector dependency.
@@ -98,6 +117,9 @@ model Entity {
   @@unique([eventId, kind, title])
   @@index([eventId, kind])
   @@index([eventId, startsAt])
+  /// Retrieval reads every live entity for an event on each question, so the
+  /// retired filter belongs in the index rather than in a post-filter.
+  @@index([eventId, retiredAt])
 }
 
 enum LinkKind {
