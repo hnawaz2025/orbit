@@ -86,7 +86,12 @@ export async function embedEntities(
   options: { force?: boolean } = {}
 ): Promise<EmbedResult> {
   const event = await prisma.event.findUniqueOrThrow({ where: { slug: eventSlug } });
-  const entities = await prisma.entity.findMany({ where: { eventId: event.id } });
+  // Retired rows are excluded from retrieval, so embedding them spends money
+  // on vectors nothing can ever match against. They keep whatever vector they
+  // had, which is what makes reviving one cheap.
+  const entities = await prisma.entity.findMany({
+    where: { eventId: event.id, retiredAt: null },
+  });
 
   const pending: { id: string; text: string; hash: string }[] = [];
   let skipped = 0;

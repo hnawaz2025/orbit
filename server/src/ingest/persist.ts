@@ -12,8 +12,25 @@ function normalise(name: string): string {
 export interface PersistResult {
   written: number;
   linked: number;
+  /** Entities retired because their source no longer lists them. */
+  retired: number;
+  /** Entities that had been retired and reappeared at their source. */
+  revived: number;
   /** Share of entities carrying real description text. */
   coverage: number;
+}
+
+export interface PersistOptions {
+  /**
+   * Source URLs that were fetched successfully in this run.
+   *
+   * Reconciliation is scoped to these and nothing else, which is the whole
+   * safety property. "Not seen this run" is only evidence of removal if we
+   * actually re-read the page -- otherwise one 404 on the speakers page would
+   * retire every speaker in the corpus, and run.ts deliberately continues past
+   * a failed source, so that path is very reachable.
+   */
+  reconcileSources?: string[];
 }
 
 /**
@@ -26,9 +43,16 @@ export interface PersistResult {
  */
 export async function persistEntities(
   eventSlug: string,
-  entities: ExtractedEntity[]
+  entities: ExtractedEntity[],
+  options: PersistOptions = {}
 ): Promise<PersistResult> {
   const event = await prisma.event.findUniqueOrThrow({ where: { slug: eventSlug } });
+
+  // One timestamp for the whole run, taken before the first write. Using
+  // new Date() per row would make "seen before this run" ambiguous for rows
+  // written while the run was still going.
+  const runAt = new Date();
+  let revived = 0;
 
   for (const entity of entities) {
     const data = {
@@ -44,7 +68,20 @@ export async function persistEntities(
       tags: entity.tags,
       confidence: entity.confidence,
       sourceUrl: entity.sourceUrl,
+      lastSeenAt: runAt,
+      // Seeing an entity again un-retires it. Conferences pull sessions and
+      // reinstate them, and reviving the existing row keeps its embedding and
+      // its links rather than rebuilding both.
+      retiredAt: null,
     };
+
+    const existing = await prisma.entity.findUnique({
+      where: {
+        eventId_kind_title: { eventId: event.id, kind: entity.kind, title: entity.title },
+      },
+      select: { retiredAt: true },
+    });
+    if (existing?.retiredAt) revived++;
 
     await prisma.entity.upsert({
       where: {
@@ -103,14 +140,38 @@ export async function persistEntities(
     }
   }
 
+  // Reconciliation. Anything whose source we re-read successfully, and which
+  // that source no longer lists, is retired -- a cancelled session, a speaker
+  // who withdrew, a booth that pulled out.
+  //
+  // Soft, never deleted: a Recommendation already made should still resolve to
+  // the thing it named even after that thing is gone, or the organizer-facing
+  // history quietly rewrites itself.
+  let retired = 0;
+  for (const sourceUrl of options.reconcileSources ?? []) {
+    const result = await prisma.entity.updateMany({
+      where: {
+        eventId: event.id,
+        sourceUrl,
+        lastSeenAt: { lt: runAt },
+        retiredAt: null,
+      },
+      data: { retiredAt: runAt },
+    });
+    retired += result.count;
+  }
+
+  const live = { eventId: event.id, retiredAt: null };
   const withDescription = await prisma.entity.count({
-    where: { eventId: event.id, description: { not: null } },
+    where: { ...live, description: { not: null } },
   });
-  const total = await prisma.entity.count({ where: { eventId: event.id } });
+  const total = await prisma.entity.count({ where: live });
 
   return {
     written: entities.length,
     linked,
+    retired,
+    revived,
     coverage: total === 0 ? 0 : withDescription / total,
   };
 }

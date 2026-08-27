@@ -51,16 +51,16 @@ function dedupe(entities: ExtractedEntity[]): ExtractedEntity[] {
  */
 const CHUNK_CONCURRENCY = 3;
 
-export function createGenericAdapter(eventWindow: {
-  startsAt: Date;
-  endsAt: Date;
-}): IngestAdapter {
+export function createGenericAdapter(
+  eventWindow: { startsAt: Date; endsAt: Date },
+  options: { refresh?: boolean } = {}
+): IngestAdapter {
   return {
     name: "generic-llm",
     supports: () => true,
 
     async collect(source: IngestSource): Promise<ExtractedEntity[]> {
-      const text = await renderPageText(source.url);
+      const text = await renderPageText(source.url, { refresh: options.refresh });
       const chunks = chunkText(text);
       console.log(`  rendered ${text.length} chars -> ${chunks.length} chunk(s)`);
 

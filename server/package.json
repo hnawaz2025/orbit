@@ -16,7 +16,8 @@
     "start": "prisma db push --skip-generate && node dist/index.js",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
-    "inspect": "tsx scripts/inspect.ts"
+    "inspect": "tsx scripts/inspect.ts",
+    "verify:reconcile": "tsx scripts/verifyReconcile.ts"
   },
   "dependencies": {
     "@orbit/shared": "*",

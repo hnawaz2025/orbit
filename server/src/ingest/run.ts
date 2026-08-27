@@ -6,16 +6,23 @@ import { persistEntities } from "./persist";
 import { findEvent } from "./sources";
 import type { ExtractedEntity } from "./types";
 
-// CLI:  npm run ingest -- <event-slug>
+// CLI:  npm run ingest -- <event-slug> [--refresh]
 //
 // Run repeatedly. Pages are cached on disk after the first fetch and entity
 // writes are upserts, so re-running after a prompt change re-extracts without
 // re-requesting anyone's site.
+//
+// --refresh re-fetches every page instead of reading that cache. Without it,
+// ingest is structurally incapable of noticing that a conference changed its
+// programme -- which is the normal state of a conference agenda, and most true
+// during the event itself.
 
 async function main() {
-  const slug = process.argv[2];
+  const args = process.argv.slice(2);
+  const refresh = args.includes("--refresh");
+  const slug = args.find((arg) => !arg.startsWith("--"));
   if (!slug) {
-    console.error("Usage: npm run ingest -- <event-slug>");
+    console.error("Usage: npm run ingest -- <event-slug> [--refresh]");
     process.exit(1);
   }
 
@@ -36,12 +43,20 @@ async function main() {
     },
   });
 
-  console.log(`Ingesting ${event.name} (${definition.sources.length} sources)\n`);
+  console.log(
+    `Ingesting ${event.name} (${definition.sources.length} sources)${refresh ? " [refreshing cache]" : ""}\n`
+  );
 
   // Only the generic adapter exists today. When a platform adapter lands, the
   // registry is tried in tier order and this becomes the fallback.
-  const adapter = createGenericAdapter({ startsAt, endsAt });
+  const adapter = createGenericAdapter({ startsAt, endsAt }, { refresh });
   const collected: ExtractedEntity[] = [];
+
+  // Only sources we actually re-read are eligible to retire anything. See the
+  // note on PersistOptions: a source that failed tells us nothing about whether
+  // its entities still exist, and treating silence as removal would let one
+  // 404 empty the corpus.
+  const fetchedSources: string[] = [];
 
   for (const source of definition.sources) {
     console.log(`${source.url}`);
@@ -49,6 +64,7 @@ async function main() {
       const entities = await adapter.collect({ eventSlug: definition.slug, ...source });
       console.log(`  -> ${entities.length} entities after dedupe\n`);
       collected.push(...entities);
+      fetchedSources.push(source.url);
     } catch (error) {
       // A single unreachable page should not abandon a corpus that is otherwise
       // fine. The coverage number at the end is what says whether the result is
@@ -62,7 +78,9 @@ async function main() {
     process.exit(1);
   }
 
-  const result = await persistEntities(definition.slug, collected);
+  const result = await persistEntities(definition.slug, collected, {
+    reconcileSources: fetchedSources,
+  });
 
   const byKind = collected.reduce<Record<string, number>>((counts, entity) => {
     counts[entity.kind] = (counts[entity.kind] ?? 0) + 1;
@@ -80,7 +98,9 @@ async function main() {
   );
 
   console.log("---");
-  console.log(`written: ${result.written}   links: ${result.linked}`);
+  console.log(
+    `written: ${result.written}   links: ${result.linked}   retired: ${result.retired}   revived: ${result.revived}`
+  );
   console.log(`by kind: ${Object.entries(byKind).map(([k, n]) => `${k}=${n}`).join("  ")}`);
   console.log(`description coverage: ${(result.coverage * 100).toFixed(0)}%`);
 
@@ -98,6 +118,15 @@ async function main() {
   // A row that reached the corpus but never got a vector is invisible to
   // matching, which looks identical to it not being there at all. Worth saying
   // out loud rather than leaving to be discovered from a thin result list.
+  // Retirement is the one destructive-looking outcome here, so it is reported
+  // loudly with its cause. A large number usually means a source changed shape
+  // rather than that a conference cancelled half its programme.
+  if (result.retired > 0) {
+    console.log(
+      `\n${result.retired} entities retired -- their source was re-read and no longer lists them.`
+    );
+  }
+
   if (embedded.failed > 0) {
     console.warn(
       `\nWARNING: ${embedded.failed} entities have no embedding and cannot be matched. ` +

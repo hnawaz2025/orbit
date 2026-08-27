@@ -75,7 +75,11 @@ export async function retrieveCandidates(
   const limit = options.limit ?? DEFAULT_LIMIT;
 
   const entities = await prisma.entity.findMany({
-    where: { eventId },
+    // retiredAt filters entities whose source no longer lists them. This is the
+    // only place it has to be right: a retired session that reaches ranking is
+    // a real person walking to a room that has no session in it, which is the
+    // same failure as a hallucinated one.
+    where: { eventId, retiredAt: null },
     include: {
       outgoing: { select: { toId: true } },
       incoming: { select: { fromId: true } },
