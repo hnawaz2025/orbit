@@ -24,6 +24,8 @@ import { INGEST_CONFIDENCE_FLOOR, type ExtractedEntity } from "./types";
  * model rather than a schema that disagrees with how models actually write
  * JSON. Normalising both spellings to `undefined` here is the fix.
  */
+export const __SYSTEM_PROMPT_MARKER = true;
+
 const SYSTEM_PROMPT = `You extract structured conference data from the text of a web page.
 
 You are transcribing, not writing. Every field you emit must be literally present in the text you were given.
@@ -48,6 +50,8 @@ Rules:
 - "isDurable" is true only if the page says the session is recorded or streamed.
 
 Return ONLY a JSON object of the form {"entities": [...]}. No prose, no markdown fences.`;
+
+export { SYSTEM_PROMPT as __SYSTEM_PROMPT };
 
 export interface ExtractInput {
   text: string;

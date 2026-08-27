@@ -99,12 +99,144 @@ export const namesSchema = z.preprocess((value) => {
   return value;
 }, z.array(z.string()).optional());
 
+/**
+ * Field names a model reaches for instead of ours.
+ *
+ * This is the highest-leverage rule in the file. Zod strips unknown keys
+ * without complaint, so a model that answers {"location": "Main Stage",
+ * "speaker": "Ayan Gupta"} -- a completely correct reading of the page --
+ * arrives as a bare title with every field empty, and nothing anywhere reports
+ * a problem. The extraction looked broken for two model generations before the
+ * raw output showed it had been right all along.
+ *
+ * Our names are not more correct than the model's, they are just ours. Agreeing
+ * to translate is cheaper than expecting every model to guess our vocabulary.
+ */
+const FIELD_ALIASES: Record<string, string> = {
+  location: "locationName",
+  room: "locationName",
+  venue: "locationName",
+  stage: "locationName",
+  place: "locationName",
+
+  speaker: "speakerNames",
+  speakers: "speakerNames",
+  speakername: "speakerNames",
+  presenter: "speakerNames",
+  presenters: "speakerNames",
+  author: "speakerNames",
+
+  company: "orgName",
+  organization: "orgName",
+  organisation: "orgName",
+  org: "orgName",
+  employer: "orgName",
+
+  abstract: "description",
+  summary: "description",
+  bio: "description",
+  biography: "description",
+  details: "description",
+
+  start: "startsAt",
+  starttime: "startsAt",
+  starts: "startsAt",
+  end: "endsAt",
+  endtime: "endsAt",
+  ends: "endsAt",
+
+  audience: "level",
+  audiencelevel: "level",
+  difficulty: "level",
+
+  role: "subtitle",
+  jobtitle: "subtitle",
+  headline: "subtitle",
+
+  name: "title",
+  type: "kind",
+};
+
+/**
+ * Our own field names, keyed by their separator-stripped lowercase form, so
+ * that speaker_names and locationName both land on the same field. Without
+ * this, a model writing our vocabulary in snake_case was treated as writing
+ * unknown keys -- the exact bug the alias table exists to prevent, reintroduced
+ * one spelling later.
+ */
+const CANONICAL_FIELDS = [
+  "kind",
+  "title",
+  "subtitle",
+  "description",
+  "locationName",
+  "startsAt",
+  "endsAt",
+  "level",
+  "isDurable",
+  "tags",
+  "confidence",
+  "speakerNames",
+  "orgName",
+];
+
+const CANONICAL_BY_NORMALISED = new Map(
+  CANONICAL_FIELDS.map((field) => [field.toLowerCase(), field])
+);
+
+/** Keys whose values are all keyword-ish and belong together in `tags`. */
+const TAG_ALIASES = new Set(["track", "tracks", "topic", "topics", "category", "categories", "tags"]);
+
+/**
+ * Rewrite a raw entity object onto our field names.
+ *
+ * A canonical key already present always wins -- translation fills gaps, it
+ * never overwrites something the model addressed to us directly. Tag-ish fields
+ * merge rather than replace, since a session can carry both a track and topics
+ * and both are worth embedding.
+ */
+function normaliseKeys(value: unknown): unknown {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return value;
+
+  const source = value as Record<string, unknown>;
+  const output: Record<string, unknown> = {};
+  const tags: string[] = [];
+
+  const collectTags = (raw: unknown) => {
+    if (typeof raw === "string") {
+      tags.push(...raw.split(/[,;|]/).map((tag) => tag.trim()).filter(Boolean));
+    } else if (Array.isArray(raw)) {
+      tags.push(...raw.filter((tag): tag is string => typeof tag === "string"));
+    }
+  };
+
+  for (const [key, raw] of Object.entries(source)) {
+    const lower = key.toLowerCase().replace(/[\s_-]/g, "");
+
+    if (TAG_ALIASES.has(lower)) {
+      collectTags(raw);
+      continue;
+    }
+
+    const canonical = CANONICAL_BY_NORMALISED.get(lower) ?? FIELD_ALIASES[lower] ?? key;
+    if (canonical in output && output[canonical] !== undefined && output[canonical] !== null) continue;
+    output[canonical] = raw;
+  }
+
+  if (tags.length > 0) {
+    const existing = Array.isArray(output.tags) ? (output.tags as unknown[]) : [];
+    output.tags = [...new Set([...existing.filter((t): t is string => typeof t === "string"), ...tags])];
+  }
+
+  return output;
+}
+
 const nullableString = z
   .string()
   .nullish()
   .transform((value) => value ?? undefined);
 
-export const extractedEntitySchema = z.object({
+export const extractedEntitySchema = z.preprocess(normaliseKeys, z.object({
   kind: kindSchema,
   title: z.string().min(1),
   subtitle: nullableString,
@@ -121,7 +253,7 @@ export const extractedEntitySchema = z.object({
   confidence: confidenceSchema,
   speakerNames: namesSchema,
   orgName: nullableString,
-});
+}));
 
 /**
  * Models drop the wrapper and return a bare array often enough to be worth
