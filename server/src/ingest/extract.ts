@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { callForJson } from "../ai/jsonRetry";
 import { complete } from "../ai/llm";
+import { extractionSchema } from "./schema";
 import { INGEST_CONFIDENCE_FLOOR, type ExtractedEntity } from "./types";
 
 // Tier 2 extraction: arbitrary rendered page text in, structured entities out.
@@ -23,43 +24,14 @@ import { INGEST_CONFIDENCE_FLOOR, type ExtractedEntity } from "./types";
  * model rather than a schema that disagrees with how models actually write
  * JSON. Normalising both spellings to `undefined` here is the fix.
  */
-const nullableString = z
-  .string()
-  .nullish()
-  .transform((value) => value ?? undefined);
-
-const extractedEntitySchema = z.object({
-  kind: z.enum(["TALK", "PERSON", "BOOTH", "ORG", "ROLE", "PROJECT", "TEAM"]),
-  title: z.string().min(1),
-  subtitle: nullableString,
-  description: nullableString,
-  locationName: nullableString,
-  startsAt: nullableString,
-  endsAt: nullableString,
-  level: nullableString,
-  isDurable: z
-    .boolean()
-    .nullish()
-    .transform((value) => value ?? undefined),
-  tags: z
-    .array(z.string())
-    .nullish()
-    .transform((value) => value ?? []),
-  confidence: z.number().min(0).max(1),
-  speakerNames: z
-    .array(z.string())
-    .nullish()
-    .transform((value) => value ?? undefined),
-  orgName: nullableString,
-});
-
-const extractionSchema = z.object({
-  entities: z.array(extractedEntitySchema),
-});
-
 const SYSTEM_PROMPT = `You extract structured conference data from the text of a web page.
 
 You are transcribing, not writing. Every field you emit must be literally present in the text you were given.
+
+"kind" must be exactly one of: TALK, PERSON, BOOTH, ORG, ROLE, PROJECT, TEAM.
+  A workshop, keynote, panel, tutorial or roundtable is a TALK.
+  A named human being is a PERSON. A company is an ORG. An expo stand is a BOOTH.
+  Do not invent other kinds.
 
 Rules:
 - If a field is not stated on the page, omit it. Never infer a room, a time, a company, or a job title that is not written down.
