@@ -133,7 +133,12 @@ export async function renderPageText(
  * from losing its room or time to the split -- the failure mode there is not a
  * missing entity but a *partial* one, which is worse, since it looks complete.
  */
-export function chunkText(text: string, chunkChars = 6000, overlapChars = 600): string[] {
+// 3000 rather than 6000. The schedule page packs roughly 27 sessions into
+// 6000 characters, which asks a 7B model for ~2000 tokens of JSON in a single
+// answer -- and observed behaviour at that size is not truncation but
+// surrender: it returns an empty list. Halving the chunk halves the entities
+// per call, and with three chunks in flight the extra calls cost no wall-clock.
+export function chunkText(text: string, chunkChars = 3000, overlapChars = 400): string[] {
   const cleaned = text.replace(/\n{3,}/g, "\n\n").trim();
   if (cleaned.length <= chunkChars) return cleaned.length > 0 ? [cleaned] : [];
 

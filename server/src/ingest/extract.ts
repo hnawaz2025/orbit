@@ -154,7 +154,11 @@ export async function extractEntities(input: ExtractInput): Promise<ExtractedEnt
     const SUBSTANTIAL_CHARS = 2000;
     if (parsed.entities.length === 0 && text.length > SUBSTANTIAL_CHARS) {
       throw new Error(
-        `Returned no entities for ${text.length} characters of page text. If this section genuinely lists no sessions, people, or companies, return an empty list again; otherwise extract what is there.`
+        // Worded to push rather than permit. The first version offered "return
+        // an empty list again" as an option and a small model took it every
+        // time -- a correction note that sanctions the failure is not a
+        // correction.
+        `You returned no entities for ${text.length} characters of page text. Re-read it and extract every session, speaker, or company that appears in it. Return an empty list only if the text genuinely contains none.`
       );
     }
   };
