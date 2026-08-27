@@ -12,20 +12,45 @@ import { INGEST_CONFIDENCE_FLOOR, type ExtractedEntity } from "./types";
 // room that does not exist and destroys their trust in every other card on the
 // screen. So every ambiguity resolves toward dropping the row.
 
+/**
+ * Models emit `null` for "this field was not on the page" at least as often as
+ * they omit the key, and the two are the same statement. Zod's `.optional()`
+ * accepts a missing key but rejects an explicit null, so a single null field
+ * -- one session without a printed audience level -- would fail the whole
+ * chunk, retry, fail identically, and drop every entity on it.
+ *
+ * That failure is expensive and quiet: it looks like a slow or unreliable
+ * model rather than a schema that disagrees with how models actually write
+ * JSON. Normalising both spellings to `undefined` here is the fix.
+ */
+const nullableString = z
+  .string()
+  .nullish()
+  .transform((value) => value ?? undefined);
+
 const extractedEntitySchema = z.object({
   kind: z.enum(["TALK", "PERSON", "BOOTH", "ORG", "ROLE", "PROJECT", "TEAM"]),
   title: z.string().min(1),
-  subtitle: z.string().optional(),
-  description: z.string().optional(),
-  locationName: z.string().optional(),
-  startsAt: z.string().optional(),
-  endsAt: z.string().optional(),
-  level: z.string().optional(),
-  isDurable: z.boolean().optional(),
-  tags: z.array(z.string()).default([]),
+  subtitle: nullableString,
+  description: nullableString,
+  locationName: nullableString,
+  startsAt: nullableString,
+  endsAt: nullableString,
+  level: nullableString,
+  isDurable: z
+    .boolean()
+    .nullish()
+    .transform((value) => value ?? undefined),
+  tags: z
+    .array(z.string())
+    .nullish()
+    .transform((value) => value ?? []),
   confidence: z.number().min(0).max(1),
-  speakerNames: z.array(z.string()).optional(),
-  orgName: z.string().optional(),
+  speakerNames: z
+    .array(z.string())
+    .nullish()
+    .transform((value) => value ?? undefined),
+  orgName: nullableString,
 });
 
 const extractionSchema = z.object({
