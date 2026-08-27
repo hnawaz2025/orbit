@@ -1,0 +1,16 @@
+{
+  "name": "orbit",
+  "private": true,
+  "workspaces": [
+    "app",
+    "server",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev --workspace server",
+    "dev:app": "npm run start --workspace app",
+    "ingest": "npm run ingest --workspace server",
+    "test": "npm run test --workspace server",
+    "typecheck": "npm run typecheck --workspace server"
+  }
+}

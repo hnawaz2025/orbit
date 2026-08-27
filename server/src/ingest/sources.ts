@@ -24,10 +24,27 @@ export const EVENTS: EventDefinition[] = [
     timezone: "America/Los_Angeles",
     startsAt: "2026-09-01T08:00:00-07:00",
     endsAt: "2026-09-03T18:00:00-07:00",
+    // These URLs were verified by rendering them, not by reading the site
+    // navigation. The pages the nav calls "Agenda" and "Expo" are shells --
+    // ~2.5k characters of menu and no sessions. The four below are where the
+    // conference actually publishes its content.
     sources: [
-      { url: "https://apiworld.co/conference/agenda/", hint: "the conference agenda: sessions with times and tracks" },
-      { url: "https://apiworld.co/speakers/", hint: "speaker listing: names, job titles, companies" },
-      { url: "https://apiworld.co/expo/", hint: "the expo floor: sponsor and exhibitor booths" },
+      {
+        url: "https://apiworld.co/conference/schedule/",
+        hint: "the full session schedule: talk titles, speaker names, tracks, room locations and pass tiers",
+      },
+      {
+        url: "https://apiworld.co/conference/keynotes/",
+        hint: "keynote sessions with speaker, room location, day and start time",
+      },
+      {
+        url: "https://apiworld.co/speakers/",
+        hint: "speaker listing, each entry formatted as 'Name Job Title @ Company'",
+      },
+      {
+        url: "https://apiworld.co/sponsors/",
+        hint: "sponsor and exhibitor listing with company descriptions; these staff the expo booths",
+      },
     ],
   },
 ];
