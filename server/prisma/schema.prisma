@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// A venue-and-time-bounded corpus: a conference, a career fair, an internal
+/// org. Every Entity belongs to exactly one. Nothing below this line knows or
+/// cares that the first one happens to be API World.
+model Event {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  venue     String?
+  timezone  String   @default("America/Los_Angeles")
+  startsAt  DateTime
+  endsAt    DateTime
+  createdAt DateTime @default(now())
+
+  entities Entity[]
+  queries  Query[]
+}
+
+/// What kind of thing an Entity is. The matching pipeline treats these
+/// uniformly; only ingestion and presentation care about the distinction.
+/// TEAM/PROJECT/ROLE exist so the same engine covers career fairs and
+/// internal-org deployments without a schema change.
+enum EntityKind {
+  TALK
+  PERSON
+  BOOTH
+  ORG
+  ROLE
+  PROJECT
+  TEAM
+}
+
+model Entity {
+  id      String     @id @default(cuid())
+  eventId String
+  event   Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  kind    EntityKind
+
+  /// Talk title, person's name, company name.
+  title    String
+  /// "Staff Engineer @ Snowflake", a booth tagline — one line of context.
+  subtitle String?
+  /// Abstract, bio, or product blurb. The primary text we embed.
+  description String?
+  /// Supplemental context resolved from the public web (SerpApi) — recent
+  /// work, talks, writing. Embedded alongside `description` so a two-line
+  /// speaker bio still produces a useful match.
+  enrichedText String?
+  enrichedAt   DateTime?
+
+  /// Room name or booth number, as printed in the program.
+  locationName String?
+  /// Null for entities that aren't time-bound (a booth is staffed all day).
+  startsAt     DateTime?
+  endsAt       DateTime?
+
+  /// The conference's own audience label ("Beginner", "Advanced"), when it
+  /// publishes one. Used to filter sessions *for* the attendee and to report
+  /// what was filtered — never to characterise a session as low-value. Orbit
+  /// deliberately does not tell anyone to skip a named talk.
+  level String?
+
+  /// Extractor confidence at ingest time, kept for auditing a corpus after the
+  /// fact. Rows below the floor never make it this far.
+  confidence Float @default(1)
+
+  /// True when the content survives the event — a recorded talk, a published
+  /// paper. Ranking deliberately down-weights durable entities in favour of
+  /// perishable ones: the recording will exist next month, the chance to ask
+  /// the speaker your specific question will not.
+  isDurable Boolean @default(false)
+
+  tags      String[] @default([])
+  sourceUrl String?
+
+  /// text-embedding-3-small, 1536 dims. Brute-forced in memory — at a few
+  /// hundred entities per event that beats carrying a pgvector dependency.
+  embedding      Float[] @default([])
+  embeddingModel String?
+
+  outgoing        EntityLink[]     @relation("LinkFrom")
+  incoming        EntityLink[]     @relation("LinkTo")
+  recommendations Recommendation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Makes re-ingestion idempotent: running the pipeline again after fixing a
+  /// prompt updates rows in place instead of duplicating the whole corpus.
+  @@unique([eventId, kind, title])
+  @@index([eventId, kind])
+  @@index([eventId, startsAt])
+}
+
+enum LinkKind {
+  SPEAKS_AT
+  WORKS_FOR
+  STAFFS_BOOTH
+  SPONSORS
+}
+
+/// Speaker→talk, person→company, company→booth. Lets a match on one entity
+/// surface the actionable other end ("this speaker is also at booth 412").
+model EntityLink {
+  id     String   @id @default(cuid())
+  fromId String
+  toId   String
+  kind   LinkKind
+
+  from Entity @relation("LinkFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to   Entity @relation("LinkTo", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@unique([fromId, toId, kind])
+  @@index([toId])
+}
+
+/// One stated problem. Anonymous — `deviceId` is the device-scoped token, no
+/// account behind it. Retained because the aggregate of these is the
+/// organizer-facing product: what the event's attendees actually needed,
+/// versus what got programmed six months earlier.
+model Query {
+  id      String @id @default(cuid())
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  /// Anonymous device token. Never joined to a person.
+  deviceId String
+
+  /// Exactly what they typed or said.
+  rawText String
+  /// LLM-extracted facets: {goal, domain, stack, blocker, seeking}. Matching
+  /// runs on these plus the embedding, not on raw prose — the same problem
+  /// gets described in wildly different vocabulary by different people.
+  structured Json?
+
+  embedding Float[] @default([])
+
+  /// Wall-clock at ask time, so ranking can drop sessions that already ended
+  /// and flag ones that collide.
+  askedAt DateTime @default(now())
+
+  recommendations Recommendation[]
+
+  @@index([eventId, askedAt])
+  @@index([deviceId])
+}
+
+model Recommendation {
+  id       String @id @default(cuid())
+  queryId  String
+  query    Query  @relation(fields: [queryId], references: [id], onDelete: Cascade)
+  entityId String
+  entity   Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  rank  Int
+  score Float
+
+  /// The generated "why this, for *your* problem" line. This is the product —
+  /// retrieval without it is just search.
+  reason String
+
+  createdAt DateTime @default(now())
+
+  @@unique([queryId, entityId])
+  @@index([queryId, rank])
+}

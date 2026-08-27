@@ -1,0 +1,93 @@
+import "dotenv/config";
+import { prisma } from "../db";
+import { createGenericAdapter } from "./adapters/generic";
+import { persistEntities } from "./persist";
+import { findEvent } from "./sources";
+import type { ExtractedEntity } from "./types";
+
+// CLI:  npm run ingest -- <event-slug>
+//
+// Run repeatedly. Pages are cached on disk after the first fetch and entity
+// writes are upserts, so re-running after a prompt change re-extracts without
+// re-requesting anyone's site.
+
+async function main() {
+  const slug = process.argv[2];
+  if (!slug) {
+    console.error("Usage: npm run ingest -- <event-slug>");
+    process.exit(1);
+  }
+
+  const definition = findEvent(slug);
+  const startsAt = new Date(definition.startsAt);
+  const endsAt = new Date(definition.endsAt);
+
+  const event = await prisma.event.upsert({
+    where: { slug: definition.slug },
+    update: { name: definition.name, venue: definition.venue, timezone: definition.timezone, startsAt, endsAt },
+    create: {
+      slug: definition.slug,
+      name: definition.name,
+      venue: definition.venue,
+      timezone: definition.timezone,
+      startsAt,
+      endsAt,
+    },
+  });
+
+  console.log(`Ingesting ${event.name} (${definition.sources.length} sources)\n`);
+
+  // Only the generic adapter exists today. When a platform adapter lands, the
+  // registry is tried in tier order and this becomes the fallback.
+  const adapter = createGenericAdapter({ startsAt, endsAt });
+  const collected: ExtractedEntity[] = [];
+
+  for (const source of definition.sources) {
+    console.log(`${source.url}`);
+    try {
+      const entities = await adapter.collect({ eventSlug: definition.slug, ...source });
+      console.log(`  -> ${entities.length} entities after dedupe\n`);
+      collected.push(...entities);
+    } catch (error) {
+      // A single unreachable page should not abandon a corpus that is otherwise
+      // fine. The coverage number at the end is what says whether the result is
+      // actually servable.
+      console.error(`  FAILED: ${error instanceof Error ? error.message : String(error)}\n`);
+    }
+  }
+
+  if (collected.length === 0) {
+    console.error("No entities extracted. Corpus unchanged.");
+    process.exit(1);
+  }
+
+  const result = await persistEntities(definition.slug, collected);
+
+  const byKind = collected.reduce<Record<string, number>>((counts, entity) => {
+    counts[entity.kind] = (counts[entity.kind] ?? 0) + 1;
+    return counts;
+  }, {});
+
+  console.log("---");
+  console.log(`written: ${result.written}   links: ${result.linked}`);
+  console.log(`by kind: ${Object.entries(byKind).map(([k, n]) => `${k}=${n}`).join("  ")}`);
+  console.log(`description coverage: ${(result.coverage * 100).toFixed(0)}%`);
+
+  // Matching quality is bounded by how much real text each entity carries. A
+  // corpus of bare titles retrieves nothing useful no matter how good the
+  // prompt is, so it is worth failing loudly here rather than discovering it
+  // from a bad recommendation in front of an attendee.
+  if (result.coverage < 0.4) {
+    console.warn(
+      "\nWARNING: under 40% of entities have descriptions. Retrieval will be weak — " +
+        "check whether the source pages actually render abstracts, or add a richer source."
+    );
+  }
+}
+
+main()
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  })
+  .finally(() => prisma.$disconnect());

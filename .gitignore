@@ -1,0 +1,14 @@
+node_modules/
+.expo/
+dist/
+build/
+*.log
+.env
+.env.local
+.DS_Store
+server/generated/
+.claude/settings.local.json
+
+# Rendered conference pages, cached to disk by src/ingest/fetch.ts. Machine-
+# local and regenerable, and some of it is other people's site content.
+.cache/

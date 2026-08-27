@@ -1,0 +1,40 @@
+{
+  "name": "@orbit/server",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.ts",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "ingest": "tsx src/ingest/run.ts",
+    "postinstall": "prisma generate",
+    "test": "node --import tsx --test \"src/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "prisma generate && tsc -p tsconfig.json",
+    "start": "prisma db push --skip-generate && node dist/index.js",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.20.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "express-rate-limit": "^8.6.2",
+    "morgan": "^1.11.0",
+    "openai": "^4.63.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/morgan": "^1.9.10",
+    "@types/node": "^20.16.5",
+    "playwright": "^1.48.0",
+    "prisma": "^5.20.0",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2"
+  }
+}
