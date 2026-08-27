@@ -12,7 +12,8 @@ import { prisma } from "./db";
 import { loadEnv } from "./env";
 import { errorHandler } from "./middleware/errorHandler";
 import { readDevice } from "./middleware/device";
-import { readRateLimiter } from "./middleware/rateLimit";
+import { aiRateLimiter, readRateLimiter } from "./middleware/rateLimit";
+import { askRouter } from "./routes/ask";
 import { eventsRouter } from "./routes/events";
 
 const env = loadEnv();
@@ -44,9 +45,12 @@ app.get("/health", async (_req, res) => {
   }
 });
 
-// Limiters are mounted per-router by how expensive the router is, not globally.
-// /ask and /speech land here in P1 behind aiRateLimiter.
+// Limiters are mounted per-router by how expensive the router is, not
+// globally. /ask spends several model calls per request and /events is a pure
+// read, so throttling them at the same rate would either starve the read or
+// leave the expensive path open.
 app.use("/events", readRateLimiter, eventsRouter);
+app.use("/ask", aiRateLimiter, askRouter);
 
 app.use(errorHandler);
 
