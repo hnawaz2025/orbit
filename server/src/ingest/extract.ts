@@ -58,6 +58,8 @@ export interface ExtractInput {
   hint?: string;
   /** Used to reject any timestamp that lands outside the conference. */
   eventWindow: { startsAt: Date; endsAt: Date };
+  /** Override the configured extraction model. Used by the model bake-off. */
+  model?: string;
 }
 
 /**
@@ -122,7 +124,13 @@ export async function extractEntities(input: ExtractInput): Promise<ExtractedEnt
   const result = await callForJson(
     extractionSchema,
     (correctionNote) =>
-      complete({ system: SYSTEM_PROMPT, user: userPrompt, correctionNote, temperature: 0 }),
+      complete({
+        system: SYSTEM_PROMPT,
+        user: userPrompt,
+        correctionNote,
+        temperature: 0,
+        model: input.model,
+      }),
     buildValidator(input)
   );
 

@@ -34,6 +34,23 @@ export interface CompleteInput {
    * is meant to say out loud doesn't read like a form letter.
    */
   temperature?: number;
+  /**
+   * Override the configured model for this one call.
+   *
+   * Extraction and explanation are different jobs with different constraints --
+   * and on Featherless the choice is not only about quality, it is about
+   * concurrency: a model's `concurrency_cost` is charged against a plan-wide
+   * ceiling, so a large model can mean the whole app serves one request at a
+   * time. Being able to name a model per call site is what makes that tunable.
+   */
+  model?: string;
+  /**
+   * Cap on generated tokens. Left generous rather than tight: extraction emits
+   * a JSON array whose length scales with how many sessions were on the page,
+   * and truncating that mid-object produces unparseable output rather than a
+   * short answer.
+   */
+  maxTokens?: number;
 }
 
 export async function complete({
@@ -41,17 +58,40 @@ export async function complete({
   user,
   correctionNote,
   temperature = 0.2,
+  model,
+  maxTokens = 4096,
 }: CompleteInput): Promise<string> {
   const response = await client.chat.completions.create({
-    model: env.FEATHERLESS_MODEL!,
+    model: model ?? env.FEATHERLESS_MODEL!,
     temperature,
+    max_tokens: maxTokens,
     messages: [
       { role: "system", content: system },
       { role: "user", content: correctionNote ? `${user}\n\n${correctionNote}` : user },
     ],
   });
 
-  return response.choices[0]?.message?.content ?? "";
+  const choice = response.choices[0]?.message as
+    | { content?: string | null; reasoning?: string | null }
+    | undefined;
+  const content = choice?.content ?? "";
+
+  // Reasoning models return their chain of thought in a separate `reasoning`
+  // field and leave `content` empty until they have finished thinking -- so on
+  // a long extraction they spend the entire token budget reasoning and return
+  // nothing at all. Caught here rather than downstream because the symptom
+  // otherwise is callForJson reporting "expected JSON, got:" with an empty
+  // string, retrying, and failing identically: a configuration mistake wearing
+  // the costume of a flaky model.
+  if (content.trim().length === 0 && (choice?.reasoning ?? "").trim().length > 0) {
+    throw new Error(
+      `Model ${model ?? env.FEATHERLESS_MODEL} returned reasoning but no content ` +
+        "(finish_reason=" + (response.choices[0]?.finish_reason ?? "?") + "). " +
+        "This is a reasoning model; Orbit's prompts expect a direct answer. Use an instruct model."
+    );
+  }
+
+  return content;
 }
 
 // Embeddings come from OpenAI rather than Featherless: the corpus is a few

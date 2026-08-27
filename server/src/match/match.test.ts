@@ -2,6 +2,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { filterCandidates } from "./filter";
 import { rankCandidates, reachabilityFactor, scoreCandidate } from "./rank";
+import { cosineSimilarity } from "./retrieve";
 import { normaliseLevel, type Candidate } from "./types";
 
 const NOW = new Date("2026-09-02T14:00:00-07:00");
@@ -205,5 +206,30 @@ describe("rankCandidates", () => {
   test("ignores a self-referential link", () => {
     const ranked = rankCandidates([candidate({ id: "a", linkedIds: ["a"] })], NOW);
     assert.equal(ranked[0].score, scoreCandidate(candidate({ id: "a" }), NOW));
+  });
+});
+
+describe("cosineSimilarity", () => {
+  test("is 1 for identical direction and 0 for orthogonal", () => {
+    assert.equal(cosineSimilarity([1, 0], [1, 0]), 1);
+    assert.equal(cosineSimilarity([1, 0], [0, 1]), 0);
+  });
+
+  test("ignores magnitude, measuring only direction", () => {
+    // Two entities saying the same thing at different lengths must score the
+    // same, or long descriptions would win on verbosity alone. Compared with a
+    // tolerance because the square roots do not round to exactly 1.
+    assert.ok(Math.abs(cosineSimilarity([1, 1], [10, 10]) - 1) < 1e-12);
+  });
+
+  test("returns 0 for a zero vector instead of NaN", () => {
+    // NaN sorts unpredictably and would scatter these rows through the results.
+    assert.equal(cosineSimilarity([0, 0], [1, 1]), 0);
+  });
+
+  test("refuses to compare across embedding models", () => {
+    // A score computed across two embedding spaces is meaningless, but looks
+    // like a plausible float -- so it has to fail loudly.
+    assert.throws(() => cosineSimilarity([1, 0], [1, 0, 0]), /different lengths/);
   });
 });
