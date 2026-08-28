@@ -17,7 +17,10 @@
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "inspect": "tsx scripts/inspect.ts",
-    "verify:reconcile": "tsx scripts/verifyReconcile.ts"
+    "verify:reconcile": "tsx scripts/verifyReconcile.ts",
+    "enrich": "tsx scripts/enrich.ts",
+    "embed": "tsx scripts/embed.ts",
+    "backfill": "tsx scripts/backfill.ts"
   },
   "dependencies": {
     "@orbit/shared": "*",

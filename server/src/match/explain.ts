@@ -29,6 +29,7 @@ For each one, write a single sentence, addressed to them, connecting the item to
 
 Rules:
 - Use only what is in the item's own description. Never claim a session covers something the text does not say it covers.
+- Never attribute a session to a person unless that person is listed on that item as its speaker. Names shown on one item belong to that item alone. Attributing a talk to the wrong speaker is the worst mistake you can make here, because the attendee will repeat it to that person.
 - Never invent a room, a time, a company, or a credential.
 - Do not restate the title. They can read the title. Say why it matters to them.
 - If the connection is weak, say what it does offer rather than overselling it. An honest "adjacent, but the speaker works on exactly your stack" is more useful than a confident irrelevance.
@@ -43,6 +44,15 @@ export interface ExplainInput {
   candidates: RankedCandidate[];
   /** Descriptions, keyed by entity id. Kept out of Candidate to stay light. */
   descriptions: Map<string, string | null>;
+  /**
+   * Speaker names per entity id.
+   *
+   * Passed in because omitting them was actively harmful rather than merely
+   * incomplete: with several items in one prompt and no speaker on any of them,
+   * the model attached the first name it had seen to all of them, and confidently
+   * credited three sessions to a speaker who had nothing to do with them.
+   */
+  speakers?: Map<string, string[]>;
 }
 
 /**
@@ -60,8 +70,10 @@ export async function explainRecommendations(input: ExplainInput): Promise<Map<s
 
   const itemLines = candidates.map((candidate, index) => {
     const description = descriptions.get(candidate.id);
+    const named = input.speakers?.get(candidate.id) ?? [];
     return [
       `[${index}] ${candidate.kind}: ${candidate.title}`,
+      named.length > 0 ? `    speakers: ${named.join(", ")}` : `    speakers: (none listed)`,
       description ? `    ${description.slice(0, 500)}` : null,
       candidate.locationName ? `    location: ${candidate.locationName}` : null,
     ]

@@ -9,7 +9,7 @@ import { explainRecommendations } from "../match/explain";
 import { filterCandidates } from "../match/filter";
 import { rankCandidates } from "../match/rank";
 import { retrieveCandidates } from "../match/retrieve";
-import { normaliseLevel } from "../match/types";
+import { normaliseLevel, preferredKinds } from "../match/types";
 import { asyncHandler } from "../middleware/asyncHandler";
 import type { DeviceRequest } from "../middleware/device";
 
@@ -73,7 +73,7 @@ askRouter.post(
       attendeeLevel: normaliseLevel(facets.seeking ?? null),
     });
 
-    const ranked = rankCandidates(filtered.kept, now)
+    const ranked = rankCandidates(filtered.kept, now, preferredKinds(facets.seeking))
       .filter((candidate) => candidate.score >= SCORE_FLOOR)
       .slice(0, SHOWN);
 
@@ -109,9 +109,28 @@ askRouter.post(
       detail.map((row) => [row.id, row.description ?? row.enrichedText ?? null])
     );
 
+    // Speakers are handed to the explainer explicitly. Without them it invented
+    // attributions -- crediting three unrelated sessions to whichever speaker
+    // appeared first in the prompt.
+    const speakers = new Map<string, string[]>(
+      detail.map((row) => [
+        row.id,
+        [
+          ...row.incoming.filter((l) => l.kind === "SPEAKS_AT").map((l) => l.from.title),
+          ...row.outgoing.filter((l) => l.kind === "SPEAKS_AT").map((l) => l.to.title),
+        ],
+      ])
+    );
+
     const reasons = corpusMiss
       ? new Map<string, string>()
-      : await explainRecommendations({ rawText: text, facets, candidates: ranked, descriptions });
+      : await explainRecommendations({
+          rawText: text,
+          facets,
+          candidates: ranked,
+          descriptions,
+          speakers,
+        });
 
     const query = await prisma.query.create({
       data: {

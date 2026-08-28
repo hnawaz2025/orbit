@@ -1,4 +1,5 @@
 import type { EntityKind } from "@prisma/client";
+export type { EntityKind };
 
 /**
  * An entity as the ranking pipeline sees it.
@@ -51,6 +52,38 @@ export function normaliseLevel(label: string | null): LevelBand | null {
   if (/\b(beginner|intro|introductory|basic|101|100[- ]?level)\b/.test(text)) return 1;
   if (/\b(advanced|expert|deep[- ]dive|300[- ]?level|400[- ]?level)\b/.test(text)) return 3;
   if (/\b(intermediate|200[- ]?level)\b/.test(text)) return 2;
+
+  return null;
+}
+
+/**
+ * What kind of thing would answer the question, inferred from how someone
+ * described what they want.
+ *
+ * The distinction is real and attendees state it plainly: "I need to understand
+ * X" wants a session, "I want to find someone who has done X" wants a human,
+ * "who sells X" wants a booth. Similarity alone cannot tell these apart,
+ * because all three are about X -- which is why a question explicitly asking
+ * for a person was returning five talks.
+ *
+ * Returns null when they did not say, which is most of the time. A preference
+ * nobody expressed should not reorder anything.
+ */
+export function preferredKinds(seeking: string | null | undefined): EntityKind[] | null {
+  if (!seeking) return null;
+  const text = seeking.toLowerCase();
+
+  if (/\b(person|people|someone|expert|practitioner|who has|talk to|meet|speaker|advice from|hire|job|recruit)\b/.test(text)) {
+    return ["PERSON"];
+  }
+
+  if (/\b(vendor|supplier|product|tool|company|booth|buy|purchase|demo|sponsor)\b/.test(text)) {
+    return ["BOOTH", "ORG"];
+  }
+
+  if (/\b(session|talk|workshop|learn|understand|technique|how to|introduction|overview)\b/.test(text)) {
+    return ["TALK"];
+  }
 
   return null;
 }

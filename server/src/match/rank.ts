@@ -1,4 +1,4 @@
-import type { Candidate } from "./types";
+import type { Candidate, EntityKind } from "./types";
 
 // Ranking, and the one opinion that separates Orbit from search.
 //
@@ -47,6 +47,18 @@ const WALK_BUFFER_MS = 10 * 60 * 1000;
 const LINK_BONUS = 0.04;
 const MAX_LINK_BONUS = 0.12;
 
+/**
+ * Applied to candidates that are not the kind of thing the attendee asked for.
+ *
+ * Deliberately a discount on the others rather than a boost on the match, and
+ * deliberately mild. Someone asking to meet a person is best served by people,
+ * but the single most relevant thing at the conference might still be a session
+ * -- and a preference should reorder a close field, not overrule an obvious
+ * answer. 0.75 is enough to change the top of the list when scores are close
+ * and not enough to bury a standout.
+ */
+const KIND_MISMATCH_FACTOR = 0.75;
+
 export interface RankedCandidate extends Candidate {
   score: number;
   rank: number;
@@ -77,13 +89,21 @@ export function reachabilityFactor(candidate: Candidate, now: Date): number {
 export function scoreCandidate(
   candidate: Candidate,
   now: Date,
-  linkedBonus: number = 0
+  linkedBonus: number = 0,
+  preferred: EntityKind[] | null = null
 ): number {
   const durability = candidate.isDurable ? DURABLE_FACTOR : 1;
-  return candidate.similarity * durability * reachabilityFactor(candidate, now) + linkedBonus;
+  const kindFit = !preferred || preferred.includes(candidate.kind) ? 1 : KIND_MISMATCH_FACTOR;
+  return (
+    candidate.similarity * durability * kindFit * reachabilityFactor(candidate, now) + linkedBonus
+  );
 }
 
-export function rankCandidates(candidates: Candidate[], now: Date): RankedCandidate[] {
+export function rankCandidates(
+  candidates: Candidate[],
+  now: Date,
+  preferred: EntityKind[] | null = null
+): RankedCandidate[] {
   const present = new Set(candidates.map((candidate) => candidate.id));
 
   const scored = candidates.map((candidate) => {
@@ -93,7 +113,7 @@ export function rankCandidates(candidates: Candidate[], now: Date): RankedCandid
     const connections = candidate.linkedIds.filter((id) => id !== candidate.id && present.has(id));
     const bonus = Math.min(connections.length * LINK_BONUS, MAX_LINK_BONUS);
 
-    return { candidate, score: scoreCandidate(candidate, now, bonus) };
+    return { candidate, score: scoreCandidate(candidate, now, bonus, preferred) };
   });
 
   return scored

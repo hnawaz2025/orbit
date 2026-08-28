@@ -91,10 +91,7 @@ async function cachedSearch(query: string, apiKey: string): Promise<SerpResult[]
  * distinguish it is left alone rather than enriched on a guess -- a thin row is
  * a weak match, a wrong row is a lie.
  */
-function buildQuery(
-  entity: Entity,
-  linkedTitles: string[]
-): { query: string; confirm: string } | null {
+function buildQuery(entity: Entity): { query: string; confirm: string } | null {
   if (entity.kind === "ORG" || entity.kind === "BOOTH") {
     // A company name is its own disambiguator, and the thing we want to know --
     // what they actually ship -- is what the top results are about.
@@ -103,19 +100,24 @@ function buildQuery(
 
   if (entity.kind !== "PERSON") return null;
 
-  // Preferred: the employer, straight off the conference's own listing.
-  const employer = entity.subtitle?.split(/\s+@\s+|\s+at\s+/i).pop()?.trim();
+  // The employer, and only the employer.
+  //
+  // An earlier version fell back to the job title when no company was present,
+  // and that is worthless as identification: "Solutions Engineer" appears in
+  // every third bio on the web, so the confirmation step passed on results
+  // about entirely different people. A generic role is not a disambiguator, and
+  // a confirmation that always succeeds is not a confirmation.
+  //
+  // Employers come from backfillSpeakers, which parses them off the page
+  // deterministically -- the model tier consistently dropped them.
+  const match = entity.subtitle?.match(/\s+@\s+(.+)$/);
+  const employer = match?.[1]?.trim();
   if (employer && employer.length > 2) {
-    return { query: `"${entity.title}" ${employer}`, confirm: employer };
+    return { query: `"${entity.title}" "${employer}"`, confirm: employer };
   }
 
-  // Fallback: the subject of a talk they are giving. Weaker, but still a claim
-  // the right person's web presence should corroborate.
-  const topic = linkedTitles[0];
-  if (topic) {
-    return { query: `"${entity.title}" ${topic.split(/[:—-]/)[0].trim()}`, confirm: entity.title };
-  }
-
+  // No company, no enrichment. A thin row is a weak match; a row carrying
+  // someone else's biography is a lie, and the second is far worse.
   return null;
 }
 
@@ -162,7 +164,6 @@ export async function enrichEntities(
       enrichedAt: null,
       kind: { in: ["PERSON", "ORG", "BOOTH"] },
     },
-    include: { incoming: { select: { from: { select: { title: true } } } } },
   });
 
   // Thinnest first. A speaker with a role and a bio gains little from four
@@ -182,7 +183,7 @@ export async function enrichEntities(
   const queued = ordered
     .map((entity) => ({
       entity,
-      plan: buildQuery(entity, entity.incoming.map((link) => link.from.title)),
+      plan: buildQuery(entity),
     }))
     .filter((row) => {
       if (!row.plan) ambiguous++;

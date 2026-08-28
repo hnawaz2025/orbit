@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { filterCandidates } from "./filter";
 import { rankCandidates, reachabilityFactor, scoreCandidate } from "./rank";
 import { cosineSimilarity } from "./retrieve";
-import { normaliseLevel, type Candidate } from "./types";
+import { normaliseLevel, preferredKinds, type Candidate } from "./types";
 
 const NOW = new Date("2026-09-02T14:00:00-07:00");
 const minutes = (n: number) => new Date(NOW.getTime() + n * 60 * 1000);
@@ -231,5 +231,73 @@ describe("cosineSimilarity", () => {
     // A score computed across two embedding spaces is meaningless, but looks
     // like a plausible float -- so it has to fail loudly.
     assert.throws(() => cosineSimilarity([1, 0], [1, 0, 0]), /different lengths/);
+  });
+});
+
+describe("preferredKinds", () => {
+  test("reads a request for a human", () => {
+    // The case that motivated this: a question explicitly asking to meet
+    // someone returned five talks, because similarity cannot tell "understand
+    // X" from "find someone who has done X" -- both are about X.
+    assert.deepEqual(preferredKinds("an expert to talk to"), ["PERSON"]);
+    assert.deepEqual(preferredKinds("someone who has shipped this"), ["PERSON"]);
+    assert.deepEqual(preferredKinds("a job"), ["PERSON"]);
+  });
+
+  test("reads a request for a vendor", () => {
+    assert.deepEqual(preferredKinds("a vendor who sells this"), ["BOOTH", "ORG"]);
+    assert.deepEqual(preferredKinds("a product demo"), ["BOOTH", "ORG"]);
+  });
+
+  test("reads a request to learn something", () => {
+    assert.deepEqual(preferredKinds("a technique"), ["TALK"]);
+    assert.deepEqual(preferredKinds("to understand the basics"), ["TALK"]);
+  });
+
+  test("expresses no preference when none was stated", () => {
+    // Most questions describe a problem, not a format. A preference nobody
+    // expressed must not reorder anything.
+    assert.equal(preferredKinds(null), null);
+    assert.equal(preferredKinds(undefined), null);
+    assert.equal(preferredKinds("help with my architecture"), null);
+  });
+});
+
+describe("kind preference in ranking", () => {
+  test("promotes the requested kind over a close competitor", () => {
+    const ranked = rankCandidates(
+      [
+        candidate({ id: "talk", kind: "TALK", similarity: 0.62 }),
+        candidate({ id: "person", kind: "PERSON", similarity: 0.58, startsAt: null, endsAt: null }),
+      ],
+      NOW,
+      ["PERSON"]
+    );
+    assert.equal(ranked[0].id, "person");
+  });
+
+  test("does not bury a standout answer of the wrong kind", () => {
+    // A preference should reorder a close field, not overrule an obvious
+    // answer.
+    const ranked = rankCandidates(
+      [
+        candidate({ id: "talk", kind: "TALK", similarity: 0.95 }),
+        candidate({ id: "person", kind: "PERSON", similarity: 0.4, startsAt: null, endsAt: null }),
+      ],
+      NOW,
+      ["PERSON"]
+    );
+    assert.equal(ranked[0].id, "talk");
+  });
+
+  test("changes nothing when no preference is given", () => {
+    const build = () => [
+      candidate({ id: "talk", kind: "TALK", similarity: 0.6 }),
+      candidate({ id: "person", kind: "PERSON", similarity: 0.5, startsAt: null, endsAt: null }),
+    ];
+    assert.deepEqual(
+      rankCandidates(build(), NOW, null).map((c) => c.id),
+      rankCandidates(build(), NOW).map((c) => c.id)
+    );
   });
 });
