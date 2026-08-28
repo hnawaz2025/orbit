@@ -5,6 +5,14 @@ import type { ExtractedEntity } from "./types";
 // Writing extracted entities into the corpus, and resolving the relationships
 // that extraction could only express as names.
 
+/**
+ * The most of one source's entities a single run may retire.
+ *
+ * Above this, the run is assumed to have read the page badly rather than the
+ * conference to have cancelled its programme. See the reconciliation block.
+ */
+const MAX_RETIRE_SHARE = 0.3;
+
 function normalise(name: string): string {
   return name.toLowerCase().replace(/\s+/g, " ").trim();
 }
@@ -149,15 +157,43 @@ export async function persistEntities(
   // history quietly rewrites itself.
   let retired = 0;
   for (const sourceUrl of options.reconcileSources ?? []) {
-    const result = await prisma.entity.updateMany({
-      where: {
-        eventId: event.id,
-        sourceUrl,
-        lastSeenAt: { lt: runAt },
-        retiredAt: null,
-      },
-      data: { retiredAt: runAt },
+    const where = {
+      eventId: event.id,
+      sourceUrl,
+      lastSeenAt: { lt: runAt },
+      retiredAt: null,
+    };
+
+    const missing = await prisma.entity.count({ where });
+    if (missing === 0) continue;
+
+    const liveForSource = await prisma.entity.count({
+      where: { eventId: event.id, sourceUrl, retiredAt: null },
     });
+
+    // Reconciliation assumes "the source no longer lists it" is evidence of
+    // removal. That holds for a deterministic adapter reading structured data.
+    // It does NOT hold for the model tier: extraction varies run to run, and a
+    // chunk that returns fewer entities than last time is a lapse, not a
+    // cancellation.
+    //
+    // A conference cancelling a third of a page between runs is not a thing
+    // that happens; an extraction missing a third of one demonstrably is --
+    // earlier runs of this pipeline returned 139, 23 and 0 entities for the
+    // same page. So a mass disappearance is treated as a failed read and
+    // retires nothing, loudly. Real cancellations arrive a few at a time and
+    // pass under the ceiling.
+    const share = liveForSource === 0 ? 0 : missing / liveForSource;
+    if (share > MAX_RETIRE_SHARE) {
+      console.warn(
+        `  refusing to retire ${missing}/${liveForSource} entities from ${sourceUrl} ` +
+          `(${Math.round(share * 100)}% — over the ${Math.round(MAX_RETIRE_SHARE * 100)}% ceiling). ` +
+          "Treating this as an incomplete extraction rather than a cancelled programme."
+      );
+      continue;
+    }
+
+    const result = await prisma.entity.updateMany({ where, data: { retiredAt: runAt } });
     retired += result.count;
   }
 

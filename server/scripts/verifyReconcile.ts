@@ -39,6 +39,9 @@ async function liveTitles(): Promise<string[]> {
   return rows.map((r) => r.title);
 }
 
+/** Ten per source, so removing one is 10% and stays under the retirement ceiling. */
+const SET_A = ["Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta", "Iota", "Kappa"];
+
 async function main() {
   await prisma.event.deleteMany({ where: { slug: SLUG } });
   await prisma.event.create({
@@ -50,42 +53,43 @@ async function main() {
     },
   });
 
-  // Run 1: three sessions from A, one from B.
-  let result = await persistEntities(
-    SLUG,
-    [talk("Alpha", SOURCE_A), talk("Beta", SOURCE_A), talk("Gamma", SOURCE_A), talk("Delta", SOURCE_B)],
-    { reconcileSources: [SOURCE_A, SOURCE_B] }
-  );
+  const fromA = (titles: string[]) => titles.map((t) => talk(t, SOURCE_A));
+  const withB = (titles: string[]) => [...fromA(titles), talk("Omega", SOURCE_B)];
+  const sorted = (titles: string[]) => [...titles].sort();
+
+  // Run 1: the full programme.
+  let result = await persistEntities(SLUG, withB(SET_A), {
+    reconcileSources: [SOURCE_A, SOURCE_B],
+  });
   check("run 1 retires nothing", result.retired, 0);
-  check("run 1 corpus", await liveTitles(), ["Alpha", "Beta", "Delta", "Gamma"]);
+  check("run 1 corpus", await liveTitles(), sorted([...SET_A, "Omega"]));
 
-  // Run 2: Beta is gone from A. Both sources fetched.
-  result = await persistEntities(
-    SLUG,
-    [talk("Alpha", SOURCE_A), talk("Gamma", SOURCE_A), talk("Delta", SOURCE_B)],
-    { reconcileSources: [SOURCE_A, SOURCE_B] }
-  );
-  check("run 2 retires the removed session", result.retired, 1);
-  check("run 2 corpus excludes it", await liveTitles(), ["Alpha", "Delta", "Gamma"]);
+  // Run 2: one session cancelled. 1 of 10 is under the ceiling, so it retires.
+  const minusBeta = SET_A.filter((t) => t !== "Beta");
+  result = await persistEntities(SLUG, withB(minusBeta), {
+    reconcileSources: [SOURCE_A, SOURCE_B],
+  });
+  check("run 2 retires the cancelled session", result.retired, 1);
+  check("run 2 corpus excludes it", await liveTitles(), sorted([...minusBeta, "Omega"]));
 
-  // Run 3: source B failed to fetch, so only A is reconciled. Delta must
-  // survive despite not appearing -- this is the property that matters.
-  result = await persistEntities(
-    SLUG,
-    [talk("Alpha", SOURCE_A), talk("Gamma", SOURCE_A)],
-    { reconcileSources: [SOURCE_A] }
-  );
+  // Run 3: source B failed to fetch, so only A is reconciled. Omega must
+  // survive despite not appearing -- one 404 must not empty the corpus.
+  result = await persistEntities(SLUG, fromA(minusBeta), { reconcileSources: [SOURCE_A] });
   check("a failed source retires nothing", result.retired, 0);
-  check("its entities survive", await liveTitles(), ["Alpha", "Delta", "Gamma"]);
+  check("its entities survive", await liveTitles(), sorted([...minusBeta, "Omega"]));
 
-  // Run 4: Beta comes back.
-  result = await persistEntities(
-    SLUG,
-    [talk("Alpha", SOURCE_A), talk("Beta", SOURCE_A), talk("Gamma", SOURCE_A)],
-    { reconcileSources: [SOURCE_A] }
-  );
+  // Run 4: a half-empty extraction. Well over the ceiling, so it must be read
+  // as a bad run rather than a cancelled programme, and retire nothing.
+  result = await persistEntities(SLUG, fromA(minusBeta.slice(0, 4)), {
+    reconcileSources: [SOURCE_A],
+  });
+  check("a mass disappearance retires nothing", result.retired, 0);
+  check("the corpus survives a bad extraction", await liveTitles(), sorted([...minusBeta, "Omega"]));
+
+  // Run 5: the cancelled session is reinstated.
+  result = await persistEntities(SLUG, fromA(SET_A), { reconcileSources: [SOURCE_A] });
   check("a reinstated session is revived", result.revived, 1);
-  check("run 4 corpus", await liveTitles(), ["Alpha", "Beta", "Delta", "Gamma"]);
+  check("run 5 corpus", await liveTitles(), sorted([...SET_A, "Omega"]));
 
   await prisma.event.deleteMany({ where: { slug: SLUG } });
   console.log(failures === 0 ? "\nall checks passed" : `\n${failures} FAILED`);

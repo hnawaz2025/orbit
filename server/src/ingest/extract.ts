@@ -45,7 +45,19 @@ Rules:
     0.7  the entity is clearly real but some fields were ambiguous
     0.4  you are piecing it together from fragments
   Be harsh. A dropped entity costs nothing; a wrong one is expensive.
-- Times must be ISO 8601 with a timezone offset, and must fall inside the event window you are given. If you cannot determine the date with certainty, omit both times rather than guessing.
+- Conference programmes usually print a time and a day on their own line, and it applies to every session listed beneath it until the next such line. For example:
+
+    2:00 PM
+    Wednesday
+    <session>
+    <session>
+    3:00 PM
+    Wednesday
+    <session>
+
+  Here both of the first two sessions start at 2:00 PM Wednesday and the third starts at 3:00 PM. Carry the most recent time and day downward onto the sessions that follow it. This is reading the page, not inferring: the time is printed, just above rather than beside.
+- Combine that day and time with the year from the event window to build the timestamp. Times are local to the venue unless the page says otherwise.
+- Times must be ISO 8601 with a timezone offset, and must fall inside the event window you are given. If no time header appears above a session and none is printed beside it, omit both times rather than guessing.
 - "level" is only for an audience label the page itself prints ("Beginner", "Advanced", "200-level"). Never assign one yourself.
 - "isDurable" is true only if the page says the session is recorded or streamed.
 
