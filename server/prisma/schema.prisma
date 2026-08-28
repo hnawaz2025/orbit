@@ -87,6 +87,18 @@ model Entity {
   /// The last ingest run that found this entity still published at its source.
   lastSeenAt DateTime @default(now())
 
+  /// Consecutive ingest runs in which this entity's source was re-read and did
+  /// not list it. Reset to zero the moment it reappears.
+  ///
+  /// This exists because the model tier is not deterministic. Re-running
+  /// extraction over an unchanged page returns a slightly different set every
+  /// time, and a single miss is overwhelmingly likely to be a lapse rather than
+  /// a cancellation -- 31 speakers who were still plainly on the page were
+  /// retired by exactly that mistake. Missing twice in a row is far better
+  /// evidence, because extraction variance is not correlated between runs
+  /// while an actual removal is present in every one.
+  missedRuns Int @default(0)
+
   /// Set when a run re-read this entity's source successfully and did not find
   /// it: a cancelled session, a speaker who withdrew, a booth that pulled out.
   ///

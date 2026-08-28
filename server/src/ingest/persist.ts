@@ -13,6 +13,18 @@ import type { ExtractedEntity } from "./types";
  */
 const MAX_RETIRE_SHARE = 0.3;
 
+/**
+ * How many consecutive runs an entity must be missing before it is retired.
+ *
+ * One miss is not evidence. Re-running the model tier over an unchanged page
+ * returns a slightly different set each time, and a single absence is far more
+ * likely to be extraction variance than a cancellation -- measured here, not
+ * assumed: one re-run retired 31 speakers who were still plainly listed on the
+ * page. Two consecutive misses is much stronger, because variance is
+ * uncorrelated between runs while a real removal is present in every one.
+ */
+const MISSES_BEFORE_RETIRE = 2;
+
 function normalise(name: string): string {
   return name.toLowerCase().replace(/\s+/g, " ").trim();
 }
@@ -77,10 +89,11 @@ export async function persistEntities(
       confidence: entity.confidence,
       sourceUrl: entity.sourceUrl,
       lastSeenAt: runAt,
-      // Seeing an entity again un-retires it. Conferences pull sessions and
-      // reinstate them, and reviving the existing row keeps its embedding and
-      // its links rather than rebuilding both.
+      // Seeing an entity again un-retires it and clears its miss streak.
+      // Conferences pull sessions and reinstate them, and reviving the existing
+      // row keeps its embedding and its links rather than rebuilding both.
       retiredAt: null,
+      missedRuns: 0,
     };
 
     const existing = await prisma.entity.findUnique({
@@ -193,7 +206,14 @@ export async function persistEntities(
       continue;
     }
 
-    const result = await prisma.entity.updateMany({ where, data: { retiredAt: runAt } });
+    // Everything absent this run has its streak advanced; only those that have
+    // now missed enough consecutive runs are retired.
+    await prisma.entity.updateMany({ where, data: { missedRuns: { increment: 1 } } });
+
+    const result = await prisma.entity.updateMany({
+      where: { ...where, missedRuns: { gte: MISSES_BEFORE_RETIRE } },
+      data: { retiredAt: runAt },
+    });
     retired += result.count;
   }
 

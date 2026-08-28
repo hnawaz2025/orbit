@@ -64,32 +64,51 @@ async function main() {
   check("run 1 retires nothing", result.retired, 0);
   check("run 1 corpus", await liveTitles(), sorted([...SET_A, "Omega"]));
 
-  // Run 2: one session cancelled. 1 of 10 is under the ceiling, so it retires.
+  // Run 2: Beta is absent for the first time. One miss is not evidence -- a
+  // model-tier extraction drops entities at random -- so nothing retires yet.
   const minusBeta = SET_A.filter((t) => t !== "Beta");
   result = await persistEntities(SLUG, withB(minusBeta), {
     reconcileSources: [SOURCE_A, SOURCE_B],
   });
-  check("run 2 retires the cancelled session", result.retired, 1);
-  check("run 2 corpus excludes it", await liveTitles(), sorted([...minusBeta, "Omega"]));
+  check("a single miss retires nothing", result.retired, 0);
+  check("it is still in the corpus", await liveTitles(), sorted([...SET_A, "Omega"]));
 
-  // Run 3: source B failed to fetch, so only A is reconciled. Omega must
+  // Run 3: absent again. Two consecutive misses is real evidence of removal.
+  result = await persistEntities(SLUG, withB(minusBeta), {
+    reconcileSources: [SOURCE_A, SOURCE_B],
+  });
+  check("a second consecutive miss retires it", result.retired, 1);
+  check("the corpus excludes it", await liveTitles(), sorted([...minusBeta, "Omega"]));
+
+  // A flapping entity -- missing, present, missing -- must never retire, which
+  // is exactly the shape extraction variance takes.
+  await persistEntities(SLUG, withB(SET_A), { reconcileSources: [SOURCE_A, SOURCE_B] });
+  const minusGamma = SET_A.filter((t) => t !== "Gamma");
+  await persistEntities(SLUG, withB(minusGamma), { reconcileSources: [SOURCE_A, SOURCE_B] });
+  result = await persistEntities(SLUG, withB(SET_A), { reconcileSources: [SOURCE_A, SOURCE_B] });
+  check("an entity that flaps is never retired", result.retired, 0);
+  check("flapping corpus intact", await liveTitles(), sorted([...SET_A, "Omega"]));
+
+  // Source B failed to fetch, so only A is reconciled. Omega must
   // survive despite not appearing -- one 404 must not empty the corpus.
-  result = await persistEntities(SLUG, fromA(minusBeta), { reconcileSources: [SOURCE_A] });
+  result = await persistEntities(SLUG, fromA(SET_A), { reconcileSources: [SOURCE_A] });
   check("a failed source retires nothing", result.retired, 0);
-  check("its entities survive", await liveTitles(), sorted([...minusBeta, "Omega"]));
+  check("its entities survive", await liveTitles(), sorted([...SET_A, "Omega"]));
 
-  // Run 4: a half-empty extraction. Well over the ceiling, so it must be read
+  // A half-empty extraction. Well over the ceiling, so it must be read
   // as a bad run rather than a cancelled programme, and retire nothing.
-  result = await persistEntities(SLUG, fromA(minusBeta.slice(0, 4)), {
+  result = await persistEntities(SLUG, fromA(SET_A.slice(0, 4)), {
     reconcileSources: [SOURCE_A],
   });
   check("a mass disappearance retires nothing", result.retired, 0);
-  check("the corpus survives a bad extraction", await liveTitles(), sorted([...minusBeta, "Omega"]));
+  check("the corpus survives a bad extraction", await liveTitles(), sorted([...SET_A, "Omega"]));
 
-  // Run 5: the cancelled session is reinstated.
+  // A reinstated session comes back, keeping its embedding and links.
+  await persistEntities(SLUG, fromA(minusBeta), { reconcileSources: [SOURCE_A] });
+  await persistEntities(SLUG, fromA(minusBeta), { reconcileSources: [SOURCE_A] });
   result = await persistEntities(SLUG, fromA(SET_A), { reconcileSources: [SOURCE_A] });
   check("a reinstated session is revived", result.revived, 1);
-  check("run 5 corpus", await liveTitles(), sorted([...SET_A, "Omega"]));
+  check("final corpus", await liveTitles(), sorted([...SET_A, "Omega"]));
 
   await prisma.event.deleteMany({ where: { slug: SLUG } });
   console.log(failures === 0 ? "\nall checks passed" : `\n${failures} FAILED`);
