@@ -16,9 +16,15 @@ async function main() {
     process.exit(1);
   }
 
-  const entities = await prisma.entity.findMany({ where: { eventId: event.id } });
+  // retiredAt matters here: retired rows are excluded from retrieval, so
+  // counting them reports coverage for a corpus nobody can search. This script
+  // was written before retirement existed and quietly over-reported for
+  // several runs.
+  const entities = await prisma.entity.findMany({
+    where: { eventId: event.id, retiredAt: null },
+  });
   const links = await prisma.entityLink.count({
-    where: { from: { eventId: event.id } },
+    where: { from: { eventId: event.id, retiredAt: null }, to: { retiredAt: null } },
   });
 
   console.log(`${event.name}  (${entities.length} entities, ${links} links)\n`);
