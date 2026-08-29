@@ -4,4 +4,5 @@ export type RootStackParamList = {
   Ask: { eventSlug?: string } | undefined;
   Results: { question: string; result: AskResponse };
   Detail: { item: RecommendedEntity };
+  Plan: undefined;
 };

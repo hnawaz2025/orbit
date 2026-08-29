@@ -1,7 +1,9 @@
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { Button } from "../components/Button";
 import { KindBadge } from "../components/KindBadge";
+import { usePlan } from "../store/usePlan";
 import { colors, radius, spacing, type } from "../theme";
 import type { RootStackParamList } from "../navigation/types";
 
@@ -17,6 +19,10 @@ const RELATION_LABEL: Record<string, string> = {
 export function DetailScreen({ route }: Props) {
   const insets = useSafeAreaInsets();
   const { item } = route.params;
+
+  const saved = usePlan((s) => s.items.some((i) => i.id === item.id));
+  const add = usePlan((s) => s.add);
+  const remove = usePlan((s) => s.remove);
 
   const when = item.startsAt
     ? new Date(item.startsAt).toLocaleString([], {
@@ -34,6 +40,12 @@ export function DetailScreen({ route }: Props) {
       <KindBadge kind={item.kind} />
       <Text style={styles.title}>{item.title}</Text>
       {item.subtitle ? <Text style={styles.subtitle}>{item.subtitle}</Text> : null}
+
+      <Button
+        label={saved ? "In your plan — remove" : "Add to my plan"}
+        variant={saved ? "quiet" : "primary"}
+        onPress={() => (saved ? remove(item.id) : add(item))}
+      />
 
       <View style={styles.reasonBox}>
         <Text style={styles.reasonLabel}>WHY THIS, FOR YOU</Text>

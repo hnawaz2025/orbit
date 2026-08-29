@@ -1,5 +1,6 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { AskScreen } from "../screens/AskScreen";
+import { PlanScreen } from "../screens/PlanScreen";
 import { DetailScreen } from "../screens/DetailScreen";
 import { ResultsScreen } from "../screens/ResultsScreen";
 import { colors, type } from "../theme";
@@ -23,6 +24,7 @@ export function RootNavigator() {
       <Stack.Screen name="Ask" component={AskScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Results" component={ResultsScreen} options={{ title: "Worth your time" }} />
       <Stack.Screen name="Detail" component={DetailScreen} options={{ title: "" }} />
+      <Stack.Screen name="Plan" component={PlanScreen} options={{ title: "My plan" }} />
     </Stack.Navigator>
   );
 }

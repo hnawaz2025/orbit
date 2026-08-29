@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -15,6 +15,7 @@ import { api } from "../api/client";
 import { Button } from "../components/Button";
 import { MicButton } from "../components/MicButton";
 import { useVoiceRecording } from "../hooks/useVoiceRecording";
+import { usePlan } from "../store/usePlan";
 import { colors, radius, spacing, type } from "../theme";
 import type { RootStackParamList } from "../navigation/types";
 
@@ -35,6 +36,12 @@ export function AskScreen({ navigation, route }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const voice = useVoiceRecording();
+  const planCount = usePlan((s) => s.items.length);
+  const hydrate = usePlan((s) => s.hydrate);
+
+  useEffect(() => {
+    void hydrate();
+  }, [hydrate]);
 
   async function finishSpeaking() {
     const heard = await voice.stopRecordingAndTranscribe();
@@ -71,7 +78,14 @@ export function AskScreen({ navigation, route }: Props) {
         contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.xxl }]}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.kicker}>API WORLD 2026</Text>
+        <View style={styles.topRow}>
+          <Text style={styles.kicker}>API WORLD 2026</Text>
+          {planCount > 0 ? (
+            <Text style={styles.planLink} onPress={() => navigation.navigate("Plan")}>
+              My plan ({planCount})
+            </Text>
+          ) : null}
+        </View>
         <Text style={styles.heading}>What are you stuck on?</Text>
         <Text style={styles.sub}>
           Describe the actual problem, not a topic. Orbit finds the sessions and the people worth
@@ -120,7 +134,9 @@ export function AskScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.xl, gap: spacing.lg, paddingBottom: spacing.xxxl },
+  topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   kicker: { ...type.label, color: colors.primary },
+  planLink: { ...type.meta, color: colors.primary },
   heading: { ...type.display, color: colors.textPrimary },
   sub: { ...type.body, color: colors.textSecondary },
   input: {

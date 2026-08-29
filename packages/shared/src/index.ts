@@ -95,3 +95,88 @@ export interface AskResponse {
 export interface TranscribeResponse {
   text: string;
 }
+
+// ---------------------------------------------------------------------------
+// Plan arithmetic
+//
+// Shared rather than living in the client because it is the one piece of the
+// plan that is a claim about the world rather than a rendering choice: whether
+// two sessions actually collide, and whether a person can physically get from
+// one to the next. Both are things the server will need the moment a plan is
+// something Orbit can reason about rather than just display.
+
+/** Roughly how long it takes to cross a convention centre and find a room. */
+export const ROOM_CHANGE_MINUTES = 10;
+
+export interface PlanItem {
+  id: string;
+  title: string;
+  kind: EntityKind;
+  locationName: string | null;
+  startsAt: IsoDateTime | null;
+  endsAt: IsoDateTime | null;
+}
+
+export type PlanConflict =
+  | { kind: "overlap"; withId: string }
+  | { kind: "tight"; withId: string; minutes: number };
+
+/**
+ * Problems with a planned item, given everything else in the plan.
+ *
+ * Two distinct failures, kept distinct because the attendee's response differs.
+ * An overlap means choosing -- they cannot attend both, and pretending
+ * otherwise is how someone ends up standing in a corridor at 2pm. A tight
+ * connection is still possible, just at a jog, and is worth flagging rather
+ * than resolving on their behalf.
+ *
+ * Items with no time are never in conflict: a booth staffed all day and a
+ * person are not scheduled, so absence of a time means "not applicable" rather
+ * than "unknown".
+ */
+export function findConflicts(item: PlanItem, others: PlanItem[]): PlanConflict[] {
+  if (!item.startsAt || !item.endsAt) return [];
+
+  const start = Date.parse(item.startsAt);
+  const end = Date.parse(item.endsAt);
+  if (Number.isNaN(start) || Number.isNaN(end)) return [];
+
+  const conflicts: PlanConflict[] = [];
+
+  for (const other of others) {
+    if (other.id === item.id || !other.startsAt || !other.endsAt) continue;
+
+    const otherStart = Date.parse(other.startsAt);
+    const otherEnd = Date.parse(other.endsAt);
+    if (Number.isNaN(otherStart) || Number.isNaN(otherEnd)) continue;
+
+    if (start < otherEnd && otherStart < end) {
+      conflicts.push({ kind: "overlap", withId: other.id });
+      continue;
+    }
+
+    // Only flag the gap where a room change is actually required. Two
+    // back-to-back sessions on the same stage need no walking time, and
+    // warning about them would train people to ignore the warning.
+    if (otherEnd <= start && item.locationName && other.locationName) {
+      if (item.locationName !== other.locationName) {
+        const gap = Math.round((start - otherEnd) / 60000);
+        if (gap < ROOM_CHANGE_MINUTES) {
+          conflicts.push({ kind: "tight", withId: other.id, minutes: gap });
+        }
+      }
+    }
+  }
+
+  return conflicts;
+}
+
+/** Chronological, with untimed items (people, booths) last. */
+export function sortPlan(items: PlanItem[]): PlanItem[] {
+  return [...items].sort((a, b) => {
+    if (!a.startsAt && !b.startsAt) return a.title.localeCompare(b.title);
+    if (!a.startsAt) return 1;
+    if (!b.startsAt) return -1;
+    return Date.parse(a.startsAt) - Date.parse(b.startsAt);
+  });
+}
