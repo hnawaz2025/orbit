@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { prisma } from "../db";
 import { createGenericAdapter } from "./adapters/generic";
+import { createSessionizeAdapter, sessionizeUrl } from "./adapters/sessionize";
 import { embedEntities } from "./embed";
 import { persistEntities } from "./persist";
 import { findEvent } from "./sources";
@@ -47,9 +48,6 @@ async function main() {
     `Ingesting ${event.name} (${definition.sources.length} sources)${refresh ? " [refreshing cache]" : ""}\n`
   );
 
-  // Only the generic adapter exists today. When a platform adapter lands, the
-  // registry is tried in tier order and this becomes the fallback.
-  const adapter = createGenericAdapter({ startsAt, endsAt }, { refresh });
   const collected: ExtractedEntity[] = [];
 
   // Only sources we actually re-read are eligible to retire anything. See the
@@ -58,8 +56,31 @@ async function main() {
   // 404 empty the corpus.
   const fetchedSources: string[] = [];
 
+  // Tier 1 first. Where the organizer publishes structured data, reading it is
+  // both cheaper and strictly better than having a model read the page that
+  // renders it -- and what Tier 1 covers, Tier 2 no longer has to.
+  if (definition.sessionizeId) {
+    const url = sessionizeUrl(definition.sessionizeId);
+    console.log(`${url}  [tier 1: sessionize]`);
+    try {
+      const adapter = createSessionizeAdapter({
+        eventId: definition.sessionizeId,
+        timezone: definition.timezone,
+        eventWindow: { startsAt, endsAt },
+      });
+      const entities = await adapter.collect({ eventSlug: definition.slug, url });
+      console.log(`  -> ${entities.length} entities\n`);
+      collected.push(...entities);
+      fetchedSources.push(url);
+    } catch (error) {
+      console.error(`  FAILED: ${error instanceof Error ? error.message : String(error)}\n`);
+    }
+  }
+
+  const adapter = createGenericAdapter({ startsAt, endsAt }, { refresh });
+
   for (const source of definition.sources) {
-    console.log(`${source.url}`);
+    console.log(`${source.url}  [tier 2: model]`);
     try {
       const entities = await adapter.collect({ eventSlug: definition.slug, ...source });
       console.log(`  -> ${entities.length} entities after dedupe\n`);
