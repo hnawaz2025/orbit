@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 import { loadEnv } from "../env";
 
 // A thin chat client, not a domain interface. Leena wrapped its provider in a
@@ -113,3 +113,36 @@ export async function embed(texts: string[]): Promise<number[][]> {
 }
 
 export const EMBEDDING_MODEL_ID = env.EMBEDDING_MODEL;
+
+export interface TranscribeInput {
+  audio: Buffer;
+  /** e.g. "audio/m4a" on a device, "audio/webm" in a browser. */
+  mimeType: string;
+}
+
+/**
+ * Speech to text, for the ask box.
+ *
+ * Voice is not a convenience feature here, it is the premise. The context of
+ * use is a hallway between sessions: standing, moving, ninety seconds, one hand
+ * holding a coffee. Typing a paragraph describing a technical problem in that
+ * situation is the friction the product exists to remove, so this sits on the
+ * critical path rather than beside it.
+ */
+export async function transcribe({ audio, mimeType }: TranscribeInput): Promise<string> {
+  const extension = mimeType.split("/")[1]?.split(";")[0] ?? "m4a";
+  const file = await toFile(audio, `speech.${extension}`);
+
+  const result = await embeddingClient.audio.transcriptions.create({
+    file,
+    model: "whisper-1",
+    // Biases the decoder toward the vocabulary an attendee will actually use.
+    // Without it Whisper renders spoken tech terms phonetically -- "MCP" as
+    // "em see pee", "Kubernetes" as "kubernetties" -- and the facet extractor
+    // then matches on a word that is not in the corpus.
+    prompt:
+      "A software engineer at a developer conference describing a technical problem. Likely terms: API, MCP, LLM, agent, Kubernetes, observability, OAuth, webhook, latency, schema, SDK, gRPC, Postgres.",
+  });
+
+  return result.text;
+}

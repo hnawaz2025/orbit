@@ -15,6 +15,7 @@ import { readDevice } from "./middleware/device";
 import { aiRateLimiter, readRateLimiter } from "./middleware/rateLimit";
 import { askRouter } from "./routes/ask";
 import { eventsRouter } from "./routes/events";
+import { speechRouter } from "./routes/speech";
 
 const env = loadEnv();
 
@@ -51,6 +52,7 @@ app.get("/health", async (_req, res) => {
 // leave the expensive path open.
 app.use("/events", readRateLimiter, eventsRouter);
 app.use("/ask", aiRateLimiter, askRouter);
+app.use("/speech", aiRateLimiter, speechRouter);
 
 app.use(errorHandler);
 

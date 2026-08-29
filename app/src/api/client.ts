@@ -56,9 +56,9 @@ export const api = {
       body: JSON.stringify({ eventSlug, text }),
     }),
 
-  transcribe: (base64Audio: string) =>
+  transcribe: (base64Audio: string, mimeType: string) =>
     request<{ text: string }>("/speech/transcribe", {
       method: "POST",
-      body: JSON.stringify({ audio: base64Audio }),
+      body: JSON.stringify({ audio: base64Audio, mimeType }),
     }),
 };

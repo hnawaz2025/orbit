@@ -166,7 +166,32 @@ export function createSessionizeAdapter(options: SessionizeOptions): IngestAdapt
         throw new Error(`Sessionize returned ${response.status} for event ${options.eventId}`);
       }
 
-      const payload = (await response.json()) as SessionizePayload;
+      const body = await response.text();
+
+      // The same URL serves two entirely different things depending on a
+      // setting the organizer controls. With the public API enabled it returns
+      // JSON; without it, it returns a JavaScript embed widget -- 200 OK, and
+      // starting with document.write. Parsing that as JSON throws something
+      // unreadable, so it is named here instead.
+      //
+      // This is the real limit on Tier 1, and it is a permission rather than a
+      // technical one: the conference is on Sessionize either way. It is also
+      // exactly why the model tier still exists.
+      if (body.trimStart().startsWith("document.write")) {
+        throw new Error(
+          `Sessionize event ${options.eventId} has not enabled its public JSON API — ` +
+            "that URL returns an embed widget, not data. Ask the organizer to turn it on, or fall back to the model tier."
+        );
+      }
+
+      let payload: SessionizePayload;
+      try {
+        payload = JSON.parse(body) as SessionizePayload;
+      } catch {
+        throw new Error(
+          `Sessionize returned something that is not JSON for event ${options.eventId} (starts with: ${body.slice(0, 60).replace(/\s+/g, " ")})`
+        );
+      }
 
       if (!Array.isArray(payload.sessions) || !Array.isArray(payload.speakers)) {
         throw new Error(

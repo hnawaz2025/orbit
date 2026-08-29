@@ -13,6 +13,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { api } from "../api/client";
 import { Button } from "../components/Button";
+import { MicButton } from "../components/MicButton";
+import { useVoiceRecording } from "../hooks/useVoiceRecording";
 import { colors, radius, spacing, type } from "../theme";
 import type { RootStackParamList } from "../navigation/types";
 
@@ -32,6 +34,15 @@ export function AskScreen({ navigation, route }: Props) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const voice = useVoiceRecording();
+
+  async function finishSpeaking() {
+    const heard = await voice.stopRecordingAndTranscribe();
+    // Appended to whatever is already there, and not submitted. Whisper
+    // mishears technical vocabulary and this is a noisy hall, so the attendee
+    // reads it before it becomes a search.
+    if (heard) setText((current) => (current ? `${current} ${heard}` : heard));
+  }
 
   const eventSlug = route.params?.eventSlug ?? "api-world-2026";
 
@@ -78,7 +89,11 @@ export function AskScreen({ navigation, route }: Props) {
           editable={!busy}
         />
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error || voice.error ? (
+          <Text style={styles.error}>{error ?? voice.error}</Text>
+        ) : null}
+
+        <MicButton state={voice.state} onStart={voice.startRecording} onStop={finishSpeaking} />
 
         <Button label="Find my people" onPress={submit} loading={busy} disabled={text.trim().length === 0} />
 
