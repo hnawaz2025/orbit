@@ -255,3 +255,142 @@ export function railState(
     duration: durationText,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Timeline layout
+//
+// Turning a plan into rows a calendar can draw. Pure, because the geometry is
+// where this goes wrong: a schedule that renders the wrong shape is worse than
+// a list, since it looks authoritative.
+
+/** Points per minute. A 50-minute session becomes 150pt. */
+export const PT_PER_MIN = 3.0;
+
+/**
+ * Floor height for a block.
+ *
+ * A 25-minute session computes to 75pt, which cannot hold a two-line title plus
+ * a room row: 12 pad + 46 title + 4 + 19 room + 12 pad = 84. The distortion is
+ * at most 9pt, never affects ordering, and is safe because every block prints
+ * its real time range -- nothing about the schedule is inferred from height
+ * alone. A calendar that renders a 25-minute session too short to read is a
+ * calendar nobody opens in a corridor.
+ */
+export const MIN_BLOCK_H = 84;
+
+/** Above this, empty time collapses to a cuff. Below, it renders true to scale. */
+export const GAP_COLLAPSE_MIN = 30;
+
+/** Fixed height of a collapsed gap, whatever its real length. */
+export const CUFF_H = 64;
+
+export type TimelineRow =
+  | {
+      kind: "group";
+      /** Colliding items, rendered side by side. At most two are drawn. */
+      items: PlanItem[];
+      /** How many could not be drawn, surfaced as a chooser chip. */
+      overflow: number;
+      height: number;
+      /** True when these genuinely cannot all be attended. */
+      collides: boolean;
+      startsAt: IsoDateTime;
+    }
+  | {
+      kind: "gap";
+      minutes: number;
+      height: number;
+      collapsed: boolean;
+      from: IsoDateTime;
+      to: IsoDateTime;
+    };
+
+export interface Timeline {
+  rows: TimelineRow[];
+  /** Not on the time axis at all: people, booths. */
+  anytime: PlanItem[];
+}
+
+function overlaps(a: PlanItem, b: PlanItem): boolean {
+  if (!a.startsAt || !a.endsAt || !b.startsAt || !b.endsAt) return false;
+  return Date.parse(a.startsAt) < Date.parse(b.endsAt) &&
+    Date.parse(b.startsAt) < Date.parse(a.endsAt);
+}
+
+function blockHeight(item: PlanItem): number {
+  if (!item.startsAt || !item.endsAt) return MIN_BLOCK_H;
+  const minutes = (Date.parse(item.endsAt) - Date.parse(item.startsAt)) / 60000;
+  return Math.max(MIN_BLOCK_H, Math.round(minutes * PT_PER_MIN));
+}
+
+/**
+ * Lay out one day of a plan.
+ *
+ * `dayKey` is a local date string (toDateString), so "which day" follows the
+ * device's clock -- the same choice the rail makes, and correct for someone
+ * standing at the venue.
+ */
+export function buildTimeline(items: PlanItem[], dayKey: string): Timeline {
+  const anytime = items.filter((i) => !i.startsAt);
+
+  const timed = items
+    .filter((i) => i.startsAt && new Date(i.startsAt).toDateString() === dayKey)
+    .sort((a, b) => Date.parse(a.startsAt!) - Date.parse(b.startsAt!));
+
+  // Cluster anything that collides, transitively: A overlapping B and B
+  // overlapping C puts all three in one group, because drawing them as
+  // separate rows would imply an order they do not have.
+  const clusters: PlanItem[][] = [];
+  for (const item of timed) {
+    const joined = clusters.find((cluster) => cluster.some((other) => overlaps(item, other)));
+    if (joined) joined.push(item);
+    else clusters.push([item]);
+  }
+
+  const rows: TimelineRow[] = [];
+  let previousEnd: number | null = null;
+
+  for (const cluster of clusters) {
+    const startsAt = cluster[0].startsAt!;
+    const start = Date.parse(startsAt);
+
+    if (previousEnd !== null && start > previousEnd) {
+      const minutes = Math.round((start - previousEnd) / 60000);
+      if (minutes > 0) {
+        const collapsed = minutes > GAP_COLLAPSE_MIN;
+        rows.push({
+          kind: "gap",
+          minutes,
+          collapsed,
+          height: collapsed ? CUFF_H : Math.round(minutes * PT_PER_MIN),
+          from: new Date(previousEnd).toISOString(),
+          to: startsAt,
+        });
+      }
+    }
+
+    // Three or more never split into thirds -- 97pt cannot hold a session
+    // title. Two are drawn and the rest become a chooser.
+    const drawn = cluster.slice(0, 2);
+    rows.push({
+      kind: "group",
+      items: drawn,
+      overflow: cluster.length - drawn.length,
+      height: Math.max(...cluster.map(blockHeight)),
+      collides: cluster.length > 1,
+      startsAt,
+    });
+
+    previousEnd = Math.max(...cluster.map((i) => Date.parse(i.endsAt ?? i.startsAt!)));
+  }
+
+  return { rows, anytime };
+}
+
+/** Days the plan touches, as local date strings, in order. */
+export function planDays(items: PlanItem[]): string[] {
+  const days = new Set(
+    items.filter((i) => i.startsAt).map((i) => new Date(i.startsAt!).toDateString())
+  );
+  return [...days].sort((a, b) => Date.parse(a) - Date.parse(b));
+}
