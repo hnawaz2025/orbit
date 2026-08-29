@@ -5,9 +5,9 @@ import { Button } from "../components/Button";
 import { KindBadge } from "../components/KindBadge";
 import { usePlan } from "../store/usePlan";
 import { colors, radius, spacing, type } from "../theme";
-import type { RootStackParamList } from "../navigation/types";
+import type { AskStackParamList } from "../navigation/types";
 
-type Props = NativeStackScreenProps<RootStackParamList, "Detail">;
+type Props = NativeStackScreenProps<AskStackParamList, "Detail">;
 
 const RELATION_LABEL: Record<string, string> = {
   SPEAKS_AT: "Speaking",

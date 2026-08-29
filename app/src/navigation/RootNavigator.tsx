@@ -1,30 +1,132 @@
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { StyleSheet, Text, View } from "react-native";
+import { findConflicts, sortPlan } from "@orbit/shared";
+import { AskIcon, PlanIcon } from "../components/TabIcons";
 import { AskScreen } from "../screens/AskScreen";
-import { PlanScreen } from "../screens/PlanScreen";
 import { DetailScreen } from "../screens/DetailScreen";
+import { PlanScreen } from "../screens/PlanScreen";
 import { ResultsScreen } from "../screens/ResultsScreen";
+import { usePlan } from "../store/usePlan";
 import { colors, type } from "../theme";
-import type { RootStackParamList } from "./types";
+import type { AskStackParamList, PlanStackParamList, RootTabParamList } from "./types";
 
-const Stack = createNativeStackNavigator<RootStackParamList>();
+const AskStack = createNativeStackNavigator<AskStackParamList>();
+const PlanStack = createNativeStackNavigator<PlanStackParamList>();
+const Tabs = createBottomTabNavigator<RootTabParamList>();
+
+const screenOptions = {
+  headerStyle: { backgroundColor: colors.background },
+  headerShadowVisible: false,
+  headerTintColor: colors.primary,
+  headerTitleStyle: { ...type.cardTitle, color: colors.textPrimary },
+  contentStyle: { backgroundColor: colors.background },
+} as const;
+
+function AskFlow() {
+  return (
+    <AskStack.Navigator screenOptions={screenOptions}>
+      {/* No header: the screen is one question, and a title bar above
+          "What are you stuck on?" would only repeat it. */}
+      <AskStack.Screen name="Ask" component={AskScreen} options={{ headerShown: false }} />
+      <AskStack.Screen name="Results" component={ResultsScreen} options={{ title: "Worth your time" }} />
+      <AskStack.Screen name="Detail" component={DetailScreen} options={{ title: "" }} />
+    </AskStack.Navigator>
+  );
+}
+
+function PlanFlow() {
+  return (
+    <PlanStack.Navigator screenOptions={screenOptions}>
+      <PlanStack.Screen name="Plan" component={PlanScreen} options={{ title: "My plan" }} />
+      <PlanStack.Screen name="Detail" component={DetailScreen} options={{ title: "" }} />
+    </PlanStack.Navigator>
+  );
+}
+
+/**
+ * The only badge in the app.
+ *
+ * It turns orange when the plan contains an unresolved overlap, which inherits
+ * the urgent rule honestly: an overlap is a decision the attendee has not made
+ * yet, and it is the one thing in the plan that will cost them something if
+ * they never look.
+ */
+function PlanBadge() {
+  const items = usePlan((s) => s.items);
+  if (items.length === 0) return null;
+
+  const ordered = sortPlan(items);
+  const clashing = ordered.some((item) =>
+    findConflicts(item, ordered).some((c) => c.kind === "overlap")
+  );
+
+  return (
+    <View style={[styles.badge, clashing && styles.badgeClash]}>
+      <Text style={styles.badgeText}>{items.length}</Text>
+    </View>
+  );
+}
 
 export function RootNavigator() {
   return (
-    <Stack.Navigator
+    <Tabs.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: colors.background },
-        headerShadowVisible: false,
-        headerTintColor: colors.primary,
-        headerTitleStyle: { ...type.cardTitle, color: colors.textPrimary },
-        contentStyle: { backgroundColor: colors.background },
+        headerShown: false,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textMuted,
+        tabBarStyle: styles.bar,
+        // Labels are not optional. Two unlabelled icons in a hallway is a
+        // guessing game, and this is read while walking.
+        tabBarLabelStyle: styles.label,
       }}
     >
-      {/* Ask has no header: it is the whole screen, and a title bar above
-          "What are you stuck on?" would just repeat it. */}
-      <Stack.Screen name="Ask" component={AskScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="Results" component={ResultsScreen} options={{ title: "Worth your time" }} />
-      <Stack.Screen name="Detail" component={DetailScreen} options={{ title: "" }} />
-      <Stack.Screen name="Plan" component={PlanScreen} options={{ title: "My plan" }} />
-    </Stack.Navigator>
+      <Tabs.Screen
+        name="AskTab"
+        component={AskFlow}
+        options={{
+          title: "Ask",
+          tabBarIcon: ({ color }) => <AskIcon color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="PlanTab"
+        component={PlanFlow}
+        options={{
+          title: "Plan",
+          tabBarIcon: ({ color }) => (
+            <View>
+              <PlanIcon color={color} />
+              <PlanBadge />
+            </View>
+          ),
+        }}
+      />
+    </Tabs.Navigator>
   );
 }
+
+const styles = StyleSheet.create({
+  bar: {
+    height: 56,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.hairline,
+    elevation: 0,
+  },
+  label: { ...type.label },
+  badge: {
+    position: "absolute",
+    top: -5,
+    right: -10,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 5,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badgeClash: { backgroundColor: colors.urgent },
+  badgeText: { ...type.label, color: colors.white, letterSpacing: 0 },
+});

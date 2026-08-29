@@ -3,9 +3,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RecommendationCard } from "../components/RecommendationCard";
 import { colors, spacing, type } from "../theme";
-import type { RootStackParamList } from "../navigation/types";
+import type { AskStackParamList } from "../navigation/types";
 
-type Props = NativeStackScreenProps<RootStackParamList, "Results">;
+type Props = NativeStackScreenProps<AskStackParamList, "Results">;
 
 /**
  * What was removed, said out loud.
