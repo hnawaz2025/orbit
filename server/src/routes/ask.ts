@@ -7,7 +7,7 @@ import { AppError } from "../errors";
 import { extractFacets, embeddingTextForQuery } from "../match/facets";
 import { explainRecommendations } from "../match/explain";
 import { filterCandidates } from "../match/filter";
-import { rankCandidates } from "../match/rank";
+import { rankCandidates, reserveForPreferredKinds } from "../match/rank";
 import { retrieveCandidates } from "../match/retrieve";
 import { normaliseLevel, preferredKinds } from "../match/types";
 import { asyncHandler } from "../middleware/asyncHandler";
@@ -52,7 +52,14 @@ askRouter.post(
     const facets = await extractFacets(text);
     const [queryVector] = await embed([embeddingTextForQuery(text, facets)]);
 
-    const retrieved = await retrieveCandidates(event.id, queryVector);
+    const preferred = preferredKinds(facets.seeking);
+
+    // Preference is applied at retrieval as well as at ranking. Ranking can
+    // only reorder what it is given, and for a topical question the top of the
+    // similarity list is entirely sessions.
+    const retrieved = await retrieveCandidates(event.id, queryVector, {
+      ensureKinds: preferred ?? undefined,
+    });
 
     // An empty retrieval means the corpus has no embeddings, not that the
     // question was bad. Saying so plainly beats an empty list that looks like
@@ -73,9 +80,13 @@ askRouter.post(
       attendeeLevel: normaliseLevel(facets.seeking ?? null),
     });
 
-    const ranked = rankCandidates(filtered.kept, now, preferredKinds(facets.seeking))
-      .filter((candidate) => candidate.score >= SCORE_FLOOR)
-      .slice(0, SHOWN);
+    const scored = rankCandidates(filtered.kept, now, preferred).filter(
+      (candidate) => candidate.score >= SCORE_FLOOR
+    );
+
+    // Reservation happens after the floor, so a preference can promote a decent
+    // match but never manufacture one.
+    const ranked = reserveForPreferredKinds(scored, preferred, SHOWN).slice(0, SHOWN);
 
     const corpusMiss = ranked.length === 0;
 

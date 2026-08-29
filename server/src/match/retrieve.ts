@@ -1,5 +1,5 @@
 import { prisma } from "../db";
-import type { Candidate } from "./types";
+import type { Candidate, EntityKind } from "./types";
 
 // Retrieval: turn a query vector into scored candidates.
 //
@@ -47,6 +47,21 @@ export function cosineSimilarity(a: number[], b: number[]): number {
 
 export interface RetrieveOptions {
   /**
+   * Kinds that must be represented in the returned set regardless of where they
+   * fall in the overall similarity ordering.
+   *
+   * Without this, a preference expressed by the attendee can never take effect,
+   * and the reason is easy to miss: ranking can only reorder what retrieval
+   * hands it. A session states its topic in its title, a person is a name and a
+   * career paragraph -- so for any topical question the top of the list is
+   * entirely sessions, and a request to *meet someone* reaches the ranker with
+   * no people in it at all to promote.
+   *
+   * Scoring still decides which ones and in what order; this only guarantees
+   * they are in the room.
+   */
+  ensureKinds?: EntityKind[];
+  /**
    * How many candidates to hand to filtering and ranking.
    *
    * Deliberately larger than the number shown to the user: filtering removes
@@ -58,6 +73,15 @@ export interface RetrieveOptions {
 }
 
 const DEFAULT_LIMIT = 40;
+
+/**
+ * How many extra candidates of an explicitly requested kind are pulled in
+ * beyond the similarity cut.
+ *
+ * Small: these still have to clear the score floor and out-rank their way onto
+ * the screen, so this widens the field rather than deciding it.
+ */
+const ENSURED_PER_KIND = 10;
 
 /**
  * Score every embedded entity in an event against the query vector.
@@ -111,5 +135,15 @@ export async function retrieveCandidates(
     });
   }
 
-  return scored.sort((a, b) => b.similarity - a.similarity).slice(0, limit);
+  const byScore = scored.sort((a, b) => b.similarity - a.similarity);
+  const head = byScore.slice(0, limit);
+
+  if (!options.ensureKinds || options.ensureKinds.length === 0) return head;
+
+  const present = new Set(head.map((candidate) => candidate.id));
+  const additions = byScore
+    .filter((candidate) => options.ensureKinds!.includes(candidate.kind) && !present.has(candidate.id))
+    .slice(0, ENSURED_PER_KIND);
+
+  return [...head, ...additions];
 }

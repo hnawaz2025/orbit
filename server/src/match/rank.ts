@@ -126,3 +126,55 @@ export function rankCandidates(
     })
     .map((entry, index) => ({ ...entry.candidate, score: entry.score, rank: index + 1 }));
 }
+
+
+/**
+ * How many of the shown results are held for the kind the attendee asked for.
+ *
+ * The discount above is not sufficient on its own, and the reason is
+ * structural rather than a tuning problem: a session's title states its topic
+ * directly, while a person's text is a name, a job title and a paragraph about
+ * their career. Asked about API security for AI agents, a talk called "API
+ * Security in the Age of AI Agents" will out-score any human alive. No discount
+ * mild enough to preserve a standout answer is ever going to close that gap.
+ *
+ * So when someone explicitly asks to meet a person, two of the five slots are
+ * theirs. The rest of the list stays ranked as normal, because the sessions are
+ * still genuinely relevant -- they asked for people, not for people *instead of*
+ * everything else.
+ */
+const RESERVED_FOR_PREFERRED = 2;
+
+/**
+ * Promote up to `RESERVED_FOR_PREFERRED` candidates of a preferred kind into
+ * the visible set, preserving relative order everywhere else.
+ *
+ * Only candidates already in `ranked` are eligible, so the score floor still
+ * applies: if nothing of that kind was a decent match, nothing is forced in.
+ * Answering "no people here matched, but these sessions did" is honest;
+ * padding the list with bad matches to satisfy a preference is not.
+ */
+export function reserveForPreferredKinds(
+  ranked: RankedCandidate[],
+  preferred: EntityKind[] | null,
+  shown: number
+): RankedCandidate[] {
+  if (!preferred || ranked.length === 0) return ranked;
+
+  const isPreferred = (candidate: RankedCandidate) => preferred.includes(candidate.kind);
+  const visible = ranked.slice(0, shown);
+  const alreadyThere = visible.filter(isPreferred).length;
+  const wanted = Math.min(RESERVED_FOR_PREFERRED, shown) - alreadyThere;
+  if (wanted <= 0) return ranked;
+
+  const promoted = ranked.filter(isPreferred).slice(0, alreadyThere + wanted);
+  if (promoted.length <= alreadyThere) return ranked;
+
+  const promotedIds = new Set(promoted.map((candidate) => candidate.id));
+  const rest = ranked.filter((candidate) => !promotedIds.has(candidate.id));
+
+  // Ranks are reassigned so the position an attendee sees matches the position
+  // stored on the Recommendation -- otherwise the organizer-facing record
+  // disagrees with what was actually on screen.
+  return [...promoted, ...rest].map((candidate, index) => ({ ...candidate, rank: index + 1 }));
+}

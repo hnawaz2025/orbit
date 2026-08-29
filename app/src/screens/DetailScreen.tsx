@@ -1,0 +1,112 @@
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { KindBadge } from "../components/KindBadge";
+import { colors, radius, spacing, type } from "../theme";
+import type { RootStackParamList } from "../navigation/types";
+
+type Props = NativeStackScreenProps<RootStackParamList, "Detail">;
+
+const RELATION_LABEL: Record<string, string> = {
+  SPEAKS_AT: "Speaking",
+  WORKS_FOR: "Works for",
+  STAFFS_BOOTH: "At the booth",
+  SPONSORS: "Sponsor",
+};
+
+export function DetailScreen({ route }: Props) {
+  const insets = useSafeAreaInsets();
+  const { item } = route.params;
+
+  const when = item.startsAt
+    ? new Date(item.startsAt).toLocaleString([], {
+        weekday: "long",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : null;
+
+  return (
+    <ScrollView
+      style={styles.flex}
+      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
+    >
+      <KindBadge kind={item.kind} />
+      <Text style={styles.title}>{item.title}</Text>
+      {item.subtitle ? <Text style={styles.subtitle}>{item.subtitle}</Text> : null}
+
+      <View style={styles.reasonBox}>
+        <Text style={styles.reasonLabel}>WHY THIS, FOR YOU</Text>
+        <Text style={styles.reason}>{item.reason}</Text>
+      </View>
+
+      {(item.locationName || when) && (
+        <View style={styles.facts}>
+          {item.locationName ? (
+            <View style={styles.fact}>
+              <Text style={styles.factLabel}>WHERE</Text>
+              <Text style={styles.factValue}>{item.locationName}</Text>
+            </View>
+          ) : null}
+          {when ? (
+            <View style={styles.fact}>
+              <Text style={styles.factLabel}>WHEN</Text>
+              <Text style={styles.factValue}>{when}</Text>
+            </View>
+          ) : null}
+        </View>
+      )}
+
+      {item.description ? <Text style={styles.body}>{item.description}</Text> : null}
+
+      {/* The actionable other end. A matched talk surfaces the person you can
+          actually walk up to, which is the half you cannot get from a schedule. */}
+      {item.linked.length > 0 && (
+        <View style={styles.linked}>
+          <Text style={styles.linkedLabel}>ALSO HERE</Text>
+          {item.linked.map((link) => (
+            <View key={link.id} style={styles.linkRow}>
+              <Text style={styles.linkRelation}>{RELATION_LABEL[link.relation] ?? link.relation}</Text>
+              <Text style={styles.linkTitle}>{link.title}</Text>
+              {link.subtitle ? <Text style={styles.linkSub}>{link.subtitle}</Text> : null}
+              {link.locationName ? <Text style={styles.linkSub}>{link.locationName}</Text> : null}
+            </View>
+          ))}
+        </View>
+      )}
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  flex: { flex: 1, backgroundColor: colors.background },
+  content: { padding: spacing.xl, gap: spacing.md },
+  title: { ...type.display, color: colors.textPrimary },
+  subtitle: { ...type.body, color: colors.textSecondary, marginTop: -spacing.sm },
+  reasonBox: {
+    backgroundColor: colors.primaryWash,
+    borderRadius: radius.card,
+    padding: spacing.lg,
+    gap: spacing.xs,
+  },
+  reasonLabel: { ...type.label, color: colors.primary },
+  reason: { ...type.reason, color: colors.textPrimary },
+  facts: { flexDirection: "row", gap: spacing.xl, flexWrap: "wrap" },
+  fact: { gap: 2 },
+  factLabel: { ...type.label, color: colors.textMuted },
+  factValue: { ...type.cardTitle, color: colors.textPrimary },
+  body: { ...type.body, color: colors.textSecondary },
+  linked: { gap: spacing.sm, marginTop: spacing.sm },
+  linkedLabel: { ...type.label, color: colors.textMuted },
+  linkRow: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.card,
+    padding: spacing.lg,
+    gap: 2,
+  },
+  linkRelation: { ...type.label, color: colors.person },
+  linkTitle: { ...type.cardTitle, color: colors.textPrimary },
+  linkSub: { ...type.meta, color: colors.textSecondary },
+});

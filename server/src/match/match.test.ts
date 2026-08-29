@@ -1,9 +1,19 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { filterCandidates } from "./filter";
-import { rankCandidates, reachabilityFactor, scoreCandidate } from "./rank";
+import {
+  rankCandidates,
+  reachabilityFactor,
+  reserveForPreferredKinds,
+  scoreCandidate,
+} from "./rank";
 import { cosineSimilarity } from "./retrieve";
-import { normaliseLevel, preferredKinds, type Candidate } from "./types";
+import {
+  normaliseLevel,
+  preferredKinds,
+  type Candidate,
+  type EntityKind as EntityKindLocal,
+} from "./types";
 
 const NOW = new Date("2026-09-02T14:00:00-07:00");
 const minutes = (n: number) => new Date(NOW.getTime() + n * 60 * 1000);
@@ -299,5 +309,53 @@ describe("kind preference in ranking", () => {
       rankCandidates(build(), NOW, null).map((c) => c.id),
       rankCandidates(build(), NOW).map((c) => c.id)
     );
+  });
+});
+
+describe("reserveForPreferredKinds", () => {
+  const ranked = (kinds: [string, EntityKindLocal][]) =>
+    rankCandidates(
+      kinds.map(([id, kind], i) =>
+        candidate({ id, kind, similarity: 0.9 - i * 0.05, startsAt: null, endsAt: null })
+      ),
+      NOW
+    );
+
+  test("promotes people into a list of talks when a person was asked for", () => {
+    // The case that motivated it: a talk states its topic directly while a
+    // person's text is a name and a career paragraph, so no survivable
+    // discount closes that gap.
+    const list = ranked([
+      ["t1", "TALK"], ["t2", "TALK"], ["t3", "TALK"],
+      ["t4", "TALK"], ["t5", "TALK"], ["p1", "PERSON"], ["p2", "PERSON"],
+    ]);
+    const out = reserveForPreferredKinds(list, ["PERSON"], 5).slice(0, 5);
+    assert.equal(out.filter((c) => c.kind === "PERSON").length, 2);
+  });
+
+  test("keeps the strongest sessions alongside them", () => {
+    const list = ranked([["t1", "TALK"], ["t2", "TALK"], ["t3", "TALK"], ["p1", "PERSON"]]);
+    const out = reserveForPreferredKinds(list, ["PERSON"], 5).slice(0, 5);
+    assert.ok(out.some((c) => c.id === "t1"), "the best session must survive");
+  });
+
+  test("forces nothing in when no candidate of that kind cleared the floor", () => {
+    // Answering "no people here matched, but these sessions did" is honest;
+    // padding the list to satisfy a preference is not.
+    const list = ranked([["t1", "TALK"], ["t2", "TALK"]]);
+    const out = reserveForPreferredKinds(list, ["PERSON"], 5);
+    assert.deepEqual(out.map((c) => c.id), ["t1", "t2"]);
+  });
+
+  test("changes nothing when the preferred kind is already represented", () => {
+    const list = ranked([["p1", "PERSON"], ["p2", "PERSON"], ["t1", "TALK"]]);
+    const out = reserveForPreferredKinds(list, ["PERSON"], 5);
+    assert.deepEqual(out.map((c) => c.id), list.map((c) => c.id));
+  });
+
+  test("renumbers ranks so the stored record matches what was shown", () => {
+    const list = ranked([["t1", "TALK"], ["t2", "TALK"], ["t3", "TALK"], ["p1", "PERSON"]]);
+    const out = reserveForPreferredKinds(list, ["PERSON"], 5);
+    assert.deepEqual(out.map((c) => c.rank), [1, 2, 3, 4]);
   });
 });
