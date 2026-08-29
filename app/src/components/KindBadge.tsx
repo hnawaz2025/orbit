@@ -8,8 +8,11 @@ import { colors, radius, spacing, type } from "../theme";
 const LOOK: Record<string, { label: string; fg: string; bg: string }> = {
   TALK: { label: "SESSION", fg: colors.primary, bg: colors.primaryWash },
   PERSON: { label: "PERSON", fg: colors.person, bg: colors.personWash },
-  BOOTH: { label: "BOOTH", fg: colors.urgent, bg: colors.urgentWash },
-  ORG: { label: "COMPANY", fg: colors.urgent, bg: colors.urgentWash },
+  // Slate, not urgent. A booth is open all day -- the least perishable thing
+  // here -- and spending the alarm colour on it broke the rule that urgent
+  // means "this is about to matter".
+  BOOTH: { label: "BOOTH", fg: colors.venue, bg: colors.venueWash },
+  ORG: { label: "COMPANY", fg: colors.venue, bg: colors.venueWash },
 };
 
 export function KindBadge({ kind }: { kind: EntityKind }) {

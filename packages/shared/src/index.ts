@@ -180,3 +180,78 @@ export function sortPlan(items: PlanItem[]): PlanItem[] {
     return Date.parse(a.startsAt) - Date.parse(b.startsAt);
   });
 }
+
+// ---------------------------------------------------------------------------
+// Rail state
+//
+// What the when-and-where block on a card should say. Here rather than in the
+// component for the same reason findConflicts is: it is time arithmetic, and
+// the rules are worth testing without rendering anything.
+//
+// The rule the whole thing exists to enforce: the absolute time is always
+// present. An earlier version substituted a relative label -- "in 34 min" --
+// for anything inside an hour, which during the conference itself is nearly
+// every session worth showing, so the number an attendee plans around vanished
+// exactly when it mattered most. Relative time is added on top, never instead.
+
+const DAY = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+
+export type RailState =
+  | { kind: "scheduled"; day: string; start: string; end: string; duration: string }
+  | { kind: "urgent"; lead: string; start: string; end: string; duration: string }
+  | { kind: "underway"; start: string; end: string; remaining: string }
+  | { kind: "untimed"; entity: EntityKind };
+
+function clock(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+/**
+ * Exported so the same rules can be read without rendering. Returns a
+ * discriminated state rather than strings, so the component decides nothing
+ * about urgency and this function decides nothing about colour.
+ */
+export function railState(
+  startsAt: string | null,
+  endsAt: string | null,
+  kind: EntityKind,
+  now: Date = new Date()
+): RailState {
+  // Absence of a time is a fact about the entity, not missing data: a booth is
+  // staffed all day and a person is not scheduled at all. The rail says so
+  // rather than going blank.
+  if (!startsAt) return { kind: "untimed", entity: kind };
+
+  const start = new Date(startsAt);
+  const end = endsAt ? new Date(endsAt) : null;
+  const minutesAway = Math.round((start.getTime() - now.getTime()) / 60000);
+  const minutes = end ? Math.round((end.getTime() - start.getTime()) / 60000) : null;
+
+  const startText = clock(startsAt);
+  const endText = end ? `–${clock(endsAt!)}` : "";
+  const durationText = minutes ? `${minutes} min` : "";
+
+  if (end && start <= now && now < end) {
+    const left = Math.round((end.getTime() - now.getTime()) / 60000);
+    return { kind: "underway", start: startText, end: endText, remaining: `${left} min left` };
+  }
+
+  if (minutesAway >= 0 && minutesAway < 20) {
+    return {
+      kind: "urgent",
+      lead: `IN ${minutesAway} MIN`,
+      start: startText,
+      end: endText,
+      duration: durationText,
+    };
+  }
+
+  const isToday = start.toDateString() === now.toDateString();
+  return {
+    kind: "scheduled",
+    day: isToday ? "TODAY" : DAY[start.getDay()],
+    start: startText,
+    end: endText,
+    duration: durationText,
+  };
+}
