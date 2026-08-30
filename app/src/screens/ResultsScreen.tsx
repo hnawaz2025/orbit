@@ -81,6 +81,9 @@ export function ResultsScreen({ navigation, route }: Props) {
           item={item}
           timeZone={result.timezone}
           onPress={() => navigation.navigate("Detail", { item, timeZone: result.timezone })}
+          onPressLinked={(id) =>
+            navigation.navigate("Detail", { entityId: id, timeZone: result.timezone })
+          }
         />
       )}
       ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}

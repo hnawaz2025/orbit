@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { buildTimeline, planDays, type PlanItem, type TimelineRow } from "@orbit/shared";
 import { KindBadge } from "../components/KindBadge";
 import { usePlan } from "../store/usePlan";
+import type { PlanStackParamList } from "../navigation/types";
 import { colors, radius, spacing, type } from "../theme";
 
 const GUTTER_W = 52;
@@ -35,10 +37,19 @@ function humanGap(minutes: number): string {
 }
 
 /** One session. Height is set by the layout, not by content. */
-function Block({ item, height, narrow, timeZone }: { item: PlanItem; height: number; narrow: boolean; timeZone?: string }) {
+function Block({
+  item, height, narrow, timeZone, onOpen,
+}: {
+  item: PlanItem; height: number; narrow: boolean; timeZone?: string; onOpen: (id: string) => void;
+}) {
   const remove = usePlan((s) => s.remove);
   return (
-    <View style={[styles.block, { height }, narrow && styles.blockNarrow]}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${item.title}`}
+      onPress={() => onOpen(item.id)}
+      style={({ pressed }) => [styles.block, { height }, narrow && styles.blockNarrow, pressed && { opacity: 0.9 }]}
+    >
       <Text style={[styles.blockTitle, narrow && styles.blockTitleNarrow]} numberOfLines={narrow ? 3 : 2}>
         {item.title}
       </Text>
@@ -53,11 +64,11 @@ function Block({ item, height, narrow, timeZone }: { item: PlanItem; height: num
         </Pressable>
         {item.endsAt ? <Text style={styles.blockEnd}>{clock(item.endsAt, timeZone)}</Text> : null}
       </View>
-    </View>
+    </Pressable>
   );
 }
 
-function Row({ row, timeZone }: { row: TimelineRow; timeZone?: string }) {
+function Row({ row, timeZone, onOpen }: { row: TimelineRow; timeZone?: string; onOpen: (id: string) => void }) {
   if (row.kind === "gap") {
     // A collapsed gap states its real length, so compressing the pixels never
     // hides the fact.
@@ -86,7 +97,7 @@ function Row({ row, timeZone }: { row: TimelineRow; timeZone?: string }) {
             impossibility is meant to be read before any words are involved. */}
         <View style={styles.column}>
           {row.items.map((item) => (
-            <Block key={item.id} item={item} height={row.height} narrow={narrow} timeZone={timeZone} />
+            <Block key={item.id} item={item} height={row.height} narrow={narrow} timeZone={timeZone} onOpen={onOpen} />
           ))}
         </View>
       </View>
@@ -112,11 +123,20 @@ function Row({ row, timeZone }: { row: TimelineRow; timeZone?: string }) {
   );
 }
 
-export function PlanScreen() {
+type Props = NativeStackScreenProps<PlanStackParamList, "Plan">;
+
+export function PlanScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const items = usePlan((s) => s.items);
   const remove = usePlan((s) => s.remove);
   const timeZone = usePlan((s) => s.timeZone);
+  const find = usePlan((s) => s.find);
+
+  // The saved recommendation is kept whole, so opening one needs no fetch.
+  const open = (id: string) => {
+    const entity = find(id);
+    if (entity) navigation.navigate("Detail", { item: entity, timeZone });
+  };
 
   const days = useMemo(() => planDays(items, timeZone), [items, timeZone]);
   const [dayIndex, setDayIndex] = useState(0);
@@ -163,7 +183,7 @@ export function PlanScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
       >
         {timeline.rows.map((row, i) => (
-          <Row key={row.kind === "group" ? row.startsAt + i : `gap-${i}`} row={row} timeZone={timeZone} />
+          <Row key={row.kind === "group" ? row.startsAt + i : `gap-${i}`} row={row} timeZone={timeZone} onOpen={open} />
         ))}
 
         {/* Docked above nothing in particular: a person has no place on a time
@@ -172,7 +192,13 @@ export function PlanScreen() {
           <View style={styles.shelf}>
             <Text style={styles.shelfLabel}>ANY TIME</Text>
             {timeline.anytime.map((item) => (
-              <View key={item.id} style={styles.shelfCard}>
+              <Pressable
+                key={item.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${item.title}`}
+                onPress={() => open(item.id)}
+                style={({ pressed }) => [styles.shelfCard, pressed && { opacity: 0.9 }]}
+              >
                 <KindBadge kind={item.kind} />
                 <Text style={styles.shelfTitle} numberOfLines={2}>
                   {item.title}
@@ -180,7 +206,7 @@ export function PlanScreen() {
                 <Pressable onPress={() => remove(item.id)} accessibilityRole="button" hitSlop={8}>
                   <Text style={styles.blockRemove}>Remove</Text>
                 </Pressable>
-              </View>
+              </Pressable>
             ))}
           </View>
         ) : null}

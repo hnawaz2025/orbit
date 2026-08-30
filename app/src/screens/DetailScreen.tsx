@@ -1,4 +1,15 @@
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import type { RecommendedEntity } from "@orbit/shared";
+import { api } from "../api/client";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Button } from "../components/Button";
@@ -16,11 +27,47 @@ const RELATION_LABEL: Record<string, string> = {
   SPONSORS: "Sponsor",
 };
 
-export function DetailScreen({ route }: Props) {
+export function DetailScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
-  const { item, timeZone } = route.params;
+  const { item: passed, entityId, timeZone: passedZone } = route.params;
 
-  const saved = usePlan((s) => s.items.some((i) => i.id === item.id));
+  // Opened either with a recommendation in hand (from results or the plan) or
+  // with just an id (from a linked speaker), in which case it is fetched.
+  const [fetched, setFetched] = useState<(RecommendedEntity & { timezone?: string }) | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (passed || !entityId) return;
+    let live = true;
+    api
+      .entity("api-world-2026", entityId)
+      .then((result) => live && setFetched(result))
+      .catch((e) => live && setFailed(e instanceof Error ? e.message : "Couldn't load that."));
+    return () => {
+      live = false;
+    };
+  }, [passed, entityId]);
+
+  const item = passed ?? fetched;
+  const timeZone = passedZone ?? fetched?.timezone;
+
+  if (failed) {
+    return (
+      <View style={[styles.flex, styles.centred]}>
+        <Text style={styles.body}>{failed}</Text>
+      </View>
+    );
+  }
+
+  if (!item) {
+    return (
+      <View style={[styles.flex, styles.centred]}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+
+  const saved = usePlan.getState().has(item.id);
   const add = usePlan((s) => s.add);
   const remove = usePlan((s) => s.remove);
 
@@ -51,10 +98,12 @@ export function DetailScreen({ route }: Props) {
         onPress={() => (saved ? remove(item.id) : add(item, timeZone))}
       />
 
-      <View style={styles.reasonBox}>
-        <Text style={styles.reasonLabel}>WHY THIS, FOR YOU</Text>
-        <Text style={styles.reason}>{item.reason}</Text>
-      </View>
+      {item.reason ? (
+        <View style={styles.reasonBox}>
+          <Text style={styles.reasonLabel}>WHY THIS, FOR YOU</Text>
+          <Text style={styles.reason}>{item.reason}</Text>
+        </View>
+      ) : null}
 
       {(item.locationName || when) && (
         <View style={styles.facts}>
@@ -73,6 +122,9 @@ export function DetailScreen({ route }: Props) {
         </View>
       )}
 
+      {/* A reason is written for a question. Opened from a link there was no
+          question, so the field is empty and the block is simply absent rather
+          than showing a hollow one. */}
       {item.description ? <Text style={styles.body}>{item.description}</Text> : null}
 
       {/* The conversation this product exists to cause usually ends with
@@ -95,12 +147,23 @@ export function DetailScreen({ route }: Props) {
         <View style={styles.linked}>
           <Text style={styles.linkedLabel}>ALSO HERE</Text>
           {item.linked.map((link) => (
-            <View key={link.id} style={styles.linkRow}>
+            // Tappable. These rows were the product's central claim rendered
+            // as a dead end -- a matched talk showed you the speaker and then
+            // refused to open them.
+            <Pressable
+              key={link.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${link.title}`}
+              onPress={() =>
+                navigation.push("Detail", { entityId: link.id, timeZone })
+              }
+              style={({ pressed }) => [styles.linkRow, pressed && { opacity: 0.9 }]}
+            >
               <Text style={styles.linkRelation}>{RELATION_LABEL[link.relation] ?? link.relation}</Text>
               <Text style={styles.linkTitle}>{link.title}</Text>
               {link.subtitle ? <Text style={styles.linkSub}>{link.subtitle}</Text> : null}
               {link.locationName ? <Text style={styles.linkSub}>{link.locationName}</Text> : null}
-            </View>
+            </Pressable>
           ))}
         </View>
       )}
@@ -110,6 +173,7 @@ export function DetailScreen({ route }: Props) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
+  centred: { alignItems: "center", justifyContent: "center", padding: spacing.xl },
   content: { padding: spacing.xl, gap: spacing.md },
   title: { ...type.display, color: colors.textPrimary },
   subtitle: { ...type.body, color: colors.textSecondary, marginTop: -spacing.sm },

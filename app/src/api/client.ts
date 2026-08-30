@@ -1,4 +1,4 @@
-import type { AskResponse, EventSummary, PassTier } from "@orbit/shared";
+import type { AskResponse, EventSummary, PassTier, RecommendedEntity } from "@orbit/shared";
 import { getOrCreateDeviceId } from "./deviceId";
 
 // Point at your machine's LAN IP (not localhost) when testing on a physical
@@ -49,6 +49,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const api = {
   events: () => request<EventSummary[]>("/events"),
+
+  entity: (eventSlug: string, id: string) =>
+    request<RecommendedEntity & { timezone: string }>(
+      `/events/${eventSlug}/entities/${encodeURIComponent(id)}`
+    ),
 
   ask: (eventSlug: string, text: string, pass?: PassTier) =>
     request<AskResponse>("/ask", {

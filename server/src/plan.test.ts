@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { findConflicts, sortPlan, type PlanItem } from "@orbit/shared";
+import { findConflicts, sortPlan, toPlanItem, type PlanItem } from "@orbit/shared";
 
 // Plan arithmetic lives in the shared package because it is a claim about the
 // world rather than a rendering choice -- whether two sessions actually collide,
@@ -75,5 +75,56 @@ describe("sortPlan", () => {
       item({ id: "early", startsAt: at(9), endsAt: at(10) }),
     ]);
     assert.deepEqual(out.map((i) => i.id), ["early", "late", "person"]);
+  });
+});
+
+describe("toPlanItem", () => {
+  const base = {
+    id: "p1", kind: "PERSON" as const, title: "Jeremy Snyder",
+    subtitle: "CEO @ FireTail", description: null, locationName: null,
+    startsAt: null, endsAt: null, rank: 1, reason: "…", profileUrl: null,
+  };
+
+  test("places a speaker at the session they are speaking at", () => {
+    // They were filed as untimed and pushed below the entire day, which
+    // rendered the differentiator as an appendix. A speaker is findable at
+    // their session, and that is a real position on the axis.
+    const item = toPlanItem({
+      ...base,
+      linked: [{
+        id: "t1", kind: "TALK", title: "API security", subtitle: null,
+        locationName: "Main Stage", relation: "SPEAKS_AT",
+        startsAt: "2026-09-02T17:00:00.000Z", endsAt: "2026-09-02T17:25:00.000Z",
+      }],
+    });
+
+    assert.equal(item.startsAt, "2026-09-02T17:00:00.000Z");
+    assert.equal(item.endsAt, "2026-09-02T17:25:00.000Z");
+    assert.equal(item.locationName, "Main Stage");
+  });
+
+  test("leaves a genuinely unscheduled person untimed", () => {
+    // A booth staffer or an attendee with no session has no position, and
+    // inventing one would be worse than the shelf.
+    const item = toPlanItem({ ...base, linked: [] });
+    assert.equal(item.startsAt, null);
+    assert.equal(item.locationName, null);
+  });
+
+  test("never overrides a session's own time with a link's", () => {
+    const item = toPlanItem({
+      ...base,
+      kind: "TALK",
+      startsAt: "2026-09-02T10:00:00.000Z",
+      endsAt: "2026-09-02T10:25:00.000Z",
+      locationName: "Workshop Stage A",
+      linked: [{
+        id: "s1", kind: "PERSON", title: "Someone", subtitle: null,
+        locationName: "Elsewhere", relation: "SPEAKS_AT",
+        startsAt: "2026-09-03T09:00:00.000Z", endsAt: "2026-09-03T09:25:00.000Z",
+      }],
+    });
+    assert.equal(item.startsAt, "2026-09-02T10:00:00.000Z");
+    assert.equal(item.locationName, "Workshop Stage A");
   });
 });

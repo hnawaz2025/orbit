@@ -193,6 +193,31 @@ export interface PlanItem {
   endsAt: IsoDateTime | null;
 }
 
+/**
+ * Reduce a saved recommendation to the fields the layout needs.
+ *
+ * A person has no time of their own, so they were filed as untimed and pushed
+ * below the whole day -- the differentiator rendered as an appendix. They are
+ * findable at the session they are speaking at, and that is a real position on
+ * the axis, so it is resolved here at save time rather than left null.
+ *
+ * The room follows the same rule: "where is this person" is answered by their
+ * session's room, and answering it with nothing is a worse answer than
+ * answering it with theirs.
+ */
+export function toPlanItem(entity: RecommendedEntity): PlanItem {
+  const speaking = entity.startsAt ? null : entity.linked.find((link) => link.startsAt);
+
+  return {
+    id: entity.id,
+    title: entity.title,
+    kind: entity.kind,
+    locationName: entity.locationName ?? speaking?.locationName ?? null,
+    startsAt: entity.startsAt ?? speaking?.startsAt ?? null,
+    endsAt: entity.endsAt ?? speaking?.endsAt ?? null,
+  };
+}
+
 export type PlanConflict =
   | { kind: "overlap"; withId: string }
   | { kind: "tight"; withId: string; minutes: number };
