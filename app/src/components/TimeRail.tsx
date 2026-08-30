@@ -14,14 +14,17 @@ export function TimeRail({
   endsAt,
   kind,
   untimedLabel,
+  timeZone,
 }: {
   startsAt: string | null;
   endsAt: string | null;
   kind: EntityKind;
   /** What to do instead, when there is no time. "Find them", "Booth 412". */
   untimedLabel?: string;
+  /** The venue's zone. A schedule is written in the conference's wall clock. */
+  timeZone?: string;
 }) {
-  const state = railState(startsAt, endsAt, kind);
+  const state = railState(startsAt, endsAt, kind, new Date(), timeZone);
 
   if (state.kind === "untimed") {
     const isPerson = state.entity === "PERSON";

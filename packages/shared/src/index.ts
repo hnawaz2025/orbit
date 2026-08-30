@@ -88,6 +88,17 @@ export interface AskRequest {
 
 export interface AskResponse {
   queryId: string;
+  /**
+   * The venue's IANA timezone.
+   *
+   * On the wire because a conference schedule is written in the venue's wall
+   * clock, and rendering it in the device's zone is wrong in the ordinary case:
+   * a session at noon in Santa Clara displayed as 15:00 to anyone whose phone
+   * had not switched zones. An attendee travelling in, or checking their
+   * schedule the night before from home, would have been given times that were
+   * confidently and uniformly wrong.
+   */
+  timezone: string;
   recommendations: RecommendedEntity[];
   diagnostics: AskDiagnostics;
 }
@@ -194,16 +205,24 @@ export function sortPlan(items: PlanItem[]): PlanItem[] {
 // every session worth showing, so the number an attendee plans around vanished
 // exactly when it mattered most. Relative time is added on top, never instead.
 
-const DAY = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-
 export type RailState =
   | { kind: "scheduled"; day: string; start: string; end: string; duration: string }
   | { kind: "urgent"; lead: string; start: string; end: string; duration: string }
   | { kind: "underway"; start: string; end: string; remaining: string }
   | { kind: "untimed"; entity: EntityKind };
 
-function clock(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+function clock(iso: string, timeZone?: string): string {
+  return new Date(iso).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone,
+  });
+}
+
+/** Which local day an instant falls on, in the venue's zone. */
+export function venueDayKey(iso: string, timeZone?: string): string {
+  return new Date(iso).toLocaleDateString("en-CA", { timeZone });
 }
 
 /**
@@ -215,7 +234,9 @@ export function railState(
   startsAt: string | null,
   endsAt: string | null,
   kind: EntityKind,
-  now: Date = new Date()
+  now: Date = new Date(),
+  /** The venue's zone. Times are the conference's, not the phone's. */
+  timeZone?: string
 ): RailState {
   // Absence of a time is a fact about the entity, not missing data: a booth is
   // staffed all day and a person is not scheduled at all. The rail says so
@@ -227,8 +248,8 @@ export function railState(
   const minutesAway = Math.round((start.getTime() - now.getTime()) / 60000);
   const minutes = end ? Math.round((end.getTime() - start.getTime()) / 60000) : null;
 
-  const startText = clock(startsAt);
-  const endText = end ? `–${clock(endsAt!)}` : "";
+  const startText = clock(startsAt, timeZone);
+  const endText = end ? `–${clock(endsAt!, timeZone)}` : "";
   const durationText = minutes ? `${minutes} min` : "";
 
   if (end && start <= now && now < end) {
@@ -246,10 +267,14 @@ export function railState(
     };
   }
 
-  const isToday = start.toDateString() === now.toDateString();
+  // "Today" is today at the venue. Someone checking from another zone late at
+  // night should not be told a session is tomorrow when the conference floor
+  // still calls it today.
+  const isToday = venueDayKey(startsAt, timeZone) === venueDayKey(now.toISOString(), timeZone);
+  const weekday = new Date(startsAt).toLocaleDateString("en-US", { weekday: "short", timeZone });
   return {
     kind: "scheduled",
-    day: isToday ? "TODAY" : DAY[start.getDay()],
+    day: isToday ? "TODAY" : weekday.toUpperCase(),
     start: startText,
     end: endText,
     duration: durationText,
@@ -326,15 +351,16 @@ function blockHeight(item: PlanItem): number {
 /**
  * Lay out one day of a plan.
  *
- * `dayKey` is a local date string (toDateString), so "which day" follows the
- * device's clock -- the same choice the rail makes, and correct for someone
- * standing at the venue.
+ * `dayKey` is a venue-local date (YYYY-MM-DD from venueDayKey), so which day a
+ * session belongs to follows the conference floor rather than the reader's
+ * phone. A 6pm Pacific session is not tomorrow because someone is checking
+ * their plan from London.
  */
-export function buildTimeline(items: PlanItem[], dayKey: string): Timeline {
+export function buildTimeline(items: PlanItem[], dayKey: string, timeZone?: string): Timeline {
   const anytime = items.filter((i) => !i.startsAt);
 
   const timed = items
-    .filter((i) => i.startsAt && new Date(i.startsAt).toDateString() === dayKey)
+    .filter((i) => i.startsAt && venueDayKey(i.startsAt, timeZone) === dayKey)
     .sort((a, b) => Date.parse(a.startsAt!) - Date.parse(b.startsAt!));
 
   // Cluster anything that collides, transitively: A overlapping B and B
@@ -387,10 +413,11 @@ export function buildTimeline(items: PlanItem[], dayKey: string): Timeline {
   return { rows, anytime };
 }
 
-/** Days the plan touches, as local date strings, in order. */
-export function planDays(items: PlanItem[]): string[] {
+/** Days the plan touches, venue-local, in order. */
+export function planDays(items: PlanItem[], timeZone?: string): string[] {
   const days = new Set(
-    items.filter((i) => i.startsAt).map((i) => new Date(i.startsAt!).toDateString())
+    items.filter((i) => i.startsAt).map((i) => venueDayKey(i.startsAt!, timeZone))
   );
-  return [...days].sort((a, b) => Date.parse(a) - Date.parse(b));
+  // ISO-ish YYYY-MM-DD sorts lexicographically, which is why en-CA is used.
+  return [...days].sort();
 }

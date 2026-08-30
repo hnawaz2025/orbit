@@ -42,7 +42,8 @@ export function ResultsScreen({ navigation, route }: Props) {
       renderItem={({ item }) => (
         <RecommendationCard
           item={item}
-          onPress={() => navigation.navigate("Detail", { item })}
+          timeZone={result.timezone}
+          onPress={() => navigation.navigate("Detail", { item, timeZone: result.timezone })}
         />
       )}
       ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}

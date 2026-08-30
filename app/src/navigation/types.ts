@@ -9,12 +9,12 @@ import type { AskResponse, RecommendedEntity } from "@orbit/shared";
 export type AskStackParamList = {
   Ask: { eventSlug?: string } | undefined;
   Results: { question: string; result: AskResponse };
-  Detail: { item: RecommendedEntity };
+  Detail: { item: RecommendedEntity; timeZone?: string };
 };
 
 export type PlanStackParamList = {
   Plan: undefined;
-  Detail: { item: RecommendedEntity };
+  Detail: { item: RecommendedEntity; timeZone?: string };
 };
 
 export type RootTabParamList = {

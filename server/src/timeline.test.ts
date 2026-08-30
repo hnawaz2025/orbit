@@ -6,6 +6,7 @@ import {
   CUFF_H,
   MIN_BLOCK_H,
   PT_PER_MIN,
+  venueDayKey,
   type PlanItem,
 } from "@orbit/shared";
 
@@ -15,7 +16,8 @@ import {
 // Minutes from 09:00 on the conference day. Fractional hours do not survive
 // the Date constructor, which is what broke the first version of this fixture.
 const at = (minutes: number) => new Date(2026, 8, 2, 9, minutes).toISOString();
-const DAY_KEY = new Date(2026, 8, 2).toDateString();
+const VENUE = "America/Los_Angeles";
+const DAY_KEY = venueDayKey(at(0), VENUE);
 
 const item = (
   id: string,
@@ -36,19 +38,19 @@ describe("buildTimeline", () => {
   test("a 50-minute session is twice the height of a 25-minute one", () => {
     // Duration has to be readable as height, or the calendar is just a list
     // with lines on it.
-    const { rows } = buildTimeline([item("long", 60, 120)], DAY_KEY);
+    const { rows } = buildTimeline([item("long", 60, 120)], DAY_KEY, VENUE);
     const group = rows.find((r) => r.kind === "group")!;
     assert.equal(group.height, Math.round(60 * PT_PER_MIN));
   });
 
   test("a short session is floored so its title still fits", () => {
-    const { rows } = buildTimeline([item("short", 60, 85)], DAY_KEY);
+    const { rows } = buildTimeline([item("short", 60, 85)], DAY_KEY, VENUE);
     const group = rows.find((r) => r.kind === "group")!;
     assert.equal(group.height, MIN_BLOCK_H);
   });
 
   test("a short gap renders true to scale", () => {
-    const { rows } = buildTimeline([item("a", 60, 120), item("b", 135, 180)], DAY_KEY);
+    const { rows } = buildTimeline([item("a", 60, 120), item("b", 135, 180)], DAY_KEY, VENUE);
     const gap = rows.find((r) => r.kind === "gap");
     assert.ok(gap && gap.kind === "gap");
     if (gap?.kind !== "gap") return;
@@ -60,7 +62,7 @@ describe("buildTimeline", () => {
   test("a long gap collapses to a fixed cuff that states its real length", () => {
     // A faithful day is three screens of mostly nothing. The cuff compresses
     // the pixels without hiding the fact.
-    const { rows } = buildTimeline([item("a", 0, 60), item("b", 300, 360)], DAY_KEY);
+    const { rows } = buildTimeline([item("a", 0, 60), item("b", 300, 360)], DAY_KEY, VENUE);
     const gap = rows.find((r) => r.kind === "gap");
     if (gap?.kind !== "gap") return assert.fail("expected a gap");
     assert.equal(gap.collapsed, true);
@@ -69,7 +71,7 @@ describe("buildTimeline", () => {
   });
 
   test("colliding sessions become one group, not two rows", () => {
-    const { rows } = buildTimeline([item("a", 60, 120), item("b", 90, 150)], DAY_KEY);
+    const { rows } = buildTimeline([item("a", 60, 120), item("b", 90, 150)], DAY_KEY, VENUE);
     const groups = rows.filter((r) => r.kind === "group");
     assert.equal(groups.length, 1);
     if (groups[0].kind !== "group") return;
@@ -100,7 +102,7 @@ describe("buildTimeline", () => {
   });
 
   test("back-to-back sessions produce no gap row", () => {
-    const { rows } = buildTimeline([item("a", 60, 120), item("b", 120, 180)], DAY_KEY);
+    const { rows } = buildTimeline([item("a", 60, 120), item("b", 120, 180)], DAY_KEY, VENUE);
     assert.equal(rows.filter((r) => r.kind === "gap").length, 0);
   });
 
@@ -110,14 +112,14 @@ describe("buildTimeline", () => {
       id: "p", title: "Ada", kind: "PERSON",
       locationName: null, startsAt: null, endsAt: null,
     };
-    const { rows, anytime } = buildTimeline([item("a", 60, 120), person], DAY_KEY);
+    const { rows, anytime } = buildTimeline([item("a", 60, 120), person], DAY_KEY, VENUE);
     assert.deepEqual(anytime.map((i) => i.id), ["p"]);
     assert.equal(rows.filter((r) => r.kind === "group").length, 1);
   });
 
   test("only the requested day is laid out", () => {
     const other: PlanItem = { ...item("tomorrow", 60, 120), startsAt: new Date(2026, 8, 3, 10).toISOString(), endsAt: new Date(2026, 8, 3, 11).toISOString() };
-    const { rows } = buildTimeline([item("today", 60, 120), other], DAY_KEY);
+    const { rows } = buildTimeline([item("today", 60, 120), other], DAY_KEY, VENUE);
     const groups = rows.filter((r) => r.kind === "group");
     assert.equal(groups.length, 1);
     if (groups[0].kind !== "group") return;
@@ -131,8 +133,8 @@ describe("planDays", () => {
       { ...item("b", 60, 120), startsAt: new Date(2026, 8, 3, 10).toISOString() },
       item("a", 60, 120),
       { id: "p", title: "Ada", kind: "PERSON", locationName: null, startsAt: null, endsAt: null },
-    ]);
+    ], VENUE);
     assert.equal(days.length, 2);
-    assert.equal(days[0], new Date(2026, 8, 2).toDateString());
+    assert.equal(days[0], venueDayKey(at(0), VENUE));
   });
 });

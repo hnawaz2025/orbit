@@ -190,6 +190,9 @@ askRouter.post(
 
     const body: AskResponse = {
       queryId: query.id,
+      // The venue's zone, so the client renders the conference's wall clock
+      // rather than the phone's.
+      timezone: event.timezone,
       recommendations,
       diagnostics: {
         endedCount: filtered.endedCount,

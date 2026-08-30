@@ -22,10 +22,12 @@ export function RecommendationCard({
   item,
   onPress,
   onPressLinked,
+  timeZone,
 }: {
   item: RecommendedEntity;
   onPress: () => void;
   onPressLinked?: (id: string) => void;
+  timeZone?: string;
 }) {
   const place = shortPlace(item.locationName);
   // For a talk this is the speaker you can walk up to; for a person it is the
@@ -46,6 +48,7 @@ export function RecommendationCard({
           endsAt={item.endsAt}
           kind={item.kind}
           untimedLabel={place ?? undefined}
+          timeZone={timeZone}
         />
 
         <View style={styles.main}>

@@ -29,9 +29,17 @@ const STORAGE_KEY = "orbit_plan_v2";
  */
 interface PlanState {
   items: PlanItem[];
+  /**
+   * The venue's zone, recorded when items are saved.
+   *
+   * The plan has to render the conference's wall clock with no network, so the
+   * zone is stored beside the items rather than fetched. One event at a time,
+   * so one zone.
+   */
+  timeZone?: string;
   hydrated: boolean;
   hydrate: () => Promise<void>;
-  add: (entity: RecommendedEntity) => void;
+  add: (entity: RecommendedEntity, timeZone?: string) => void;
   remove: (id: string) => void;
   has: (id: string) => boolean;
 }
@@ -47,9 +55,9 @@ function toPlanItem(entity: RecommendedEntity): PlanItem {
   };
 }
 
-async function persist(items: PlanItem[]) {
+async function persist(items: PlanItem[], timeZone?: string) {
   try {
-    await setItem(STORAGE_KEY, JSON.stringify(items));
+    await setItem(STORAGE_KEY, JSON.stringify({ items, timeZone }));
   } catch {
     // A failed write costs this change on next launch, which is not worth
     // interrupting someone mid-conference to report.
@@ -64,8 +72,12 @@ export const usePlan = create<PlanState>((set, get) => ({
     if (get().hydrated) return;
     try {
       const raw = await getItem(STORAGE_KEY);
-      const items = raw ? (JSON.parse(raw) as PlanItem[]) : [];
-      set({ items: Array.isArray(items) ? items : [], hydrated: true });
+      const parsed = raw ? (JSON.parse(raw) as { items?: PlanItem[]; timeZone?: string }) : null;
+      set({
+        items: Array.isArray(parsed?.items) ? parsed!.items : [],
+        timeZone: parsed?.timeZone,
+        hydrated: true,
+      });
     } catch {
       // Corrupt or unreadable storage starts an empty plan rather than
       // preventing the app from opening.
@@ -73,18 +85,19 @@ export const usePlan = create<PlanState>((set, get) => ({
     }
   },
 
-  add: (entity) => {
+  add: (entity, timeZone) => {
     const items = get().items;
     if (items.some((i) => i.id === entity.id)) return;
     const next = [...items, toPlanItem(entity)];
-    set({ items: next });
-    void persist(next);
+    const zone = timeZone ?? get().timeZone;
+    set({ items: next, timeZone: zone });
+    void persist(next, zone);
   },
 
   remove: (id) => {
     const next = get().items.filter((i) => i.id !== id);
     set({ items: next });
-    void persist(next);
+    void persist(next, get().timeZone);
   },
 
   has: (id) => get().items.some((i) => i.id === id),

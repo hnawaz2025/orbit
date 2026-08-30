@@ -18,17 +18,21 @@ const RELATION_LABEL: Record<string, string> = {
 
 export function DetailScreen({ route }: Props) {
   const insets = useSafeAreaInsets();
-  const { item } = route.params;
+  const { item, timeZone } = route.params;
 
   const saved = usePlan((s) => s.items.some((i) => i.id === item.id));
   const add = usePlan((s) => s.add);
   const remove = usePlan((s) => s.remove);
 
+  // Venue time, like everywhere else. A schedule read in the phone's zone is
+  // wrong for anyone who has not landed yet.
   const when = item.startsAt
     ? new Date(item.startsAt).toLocaleString([], {
         weekday: "long",
-        hour: "numeric",
+        hour: "2-digit",
         minute: "2-digit",
+        hour12: false,
+        timeZone,
       })
     : null;
 
@@ -44,7 +48,7 @@ export function DetailScreen({ route }: Props) {
       <Button
         label={saved ? "In your plan — remove" : "Add to my plan"}
         variant={saved ? "quiet" : "primary"}
-        onPress={() => (saved ? remove(item.id) : add(item))}
+        onPress={() => (saved ? remove(item.id) : add(item, timeZone))}
       />
 
       <View style={styles.reasonBox}>

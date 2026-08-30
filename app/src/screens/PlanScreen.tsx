@@ -8,13 +8,23 @@ import { colors, radius, spacing, type } from "../theme";
 
 const GUTTER_W = 52;
 
-function clock(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+function clock(iso: string, timeZone?: string): string {
+  return new Date(iso).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone,
+  });
 }
 
 function dayLabel(key: string): string {
-  const d = new Date(key);
-  return d.toLocaleDateString([], { weekday: "short", day: "numeric" });
+  // key is a venue-local YYYY-MM-DD; parsed as UTC noon so the label cannot
+  // slip a day on either side.
+  return new Date(`${key}T12:00:00Z`).toLocaleDateString([], {
+    weekday: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 function humanGap(minutes: number): string {
@@ -25,7 +35,7 @@ function humanGap(minutes: number): string {
 }
 
 /** One session. Height is set by the layout, not by content. */
-function Block({ item, height, narrow }: { item: PlanItem; height: number; narrow: boolean }) {
+function Block({ item, height, narrow, timeZone }: { item: PlanItem; height: number; narrow: boolean; timeZone?: string }) {
   const remove = usePlan((s) => s.remove);
   return (
     <View style={[styles.block, { height }, narrow && styles.blockNarrow]}>
@@ -41,13 +51,13 @@ function Block({ item, height, narrow }: { item: PlanItem; height: number; narro
         <Pressable onPress={() => remove(item.id)} accessibilityRole="button" hitSlop={8}>
           <Text style={styles.blockRemove}>Remove</Text>
         </Pressable>
-        {item.endsAt ? <Text style={styles.blockEnd}>{clock(item.endsAt)}</Text> : null}
+        {item.endsAt ? <Text style={styles.blockEnd}>{clock(item.endsAt, timeZone)}</Text> : null}
       </View>
     </View>
   );
 }
 
-function Row({ row }: { row: TimelineRow }) {
+function Row({ row, timeZone }: { row: TimelineRow; timeZone?: string }) {
   if (row.kind === "gap") {
     // A collapsed gap states its real length, so compressing the pixels never
     // hides the fact.
@@ -57,7 +67,7 @@ function Row({ row }: { row: TimelineRow }) {
         <View style={styles.gutter} />
         <View style={styles.cuff}>
           <Text style={styles.cuffText}>
-            {humanGap(row.minutes)} · {clock(row.from)}–{clock(row.to)}
+            {humanGap(row.minutes)} · {clock(row.from, timeZone)}–{clock(row.to, timeZone)}
           </Text>
         </View>
       </View>
@@ -70,13 +80,13 @@ function Row({ row }: { row: TimelineRow }) {
     <View>
       <View style={styles.groupRow}>
         <View style={styles.gutter}>
-          <Text style={styles.gutterTime}>{clock(row.startsAt)}</Text>
+          <Text style={styles.gutterTime}>{clock(row.startsAt, timeZone)}</Text>
         </View>
         {/* Two colliding sessions occupy the same vertical space. The
             impossibility is meant to be read before any words are involved. */}
         <View style={styles.column}>
           {row.items.map((item) => (
-            <Block key={item.id} item={item} height={row.height} narrow={narrow} />
+            <Block key={item.id} item={item} height={row.height} narrow={narrow} timeZone={timeZone} />
           ))}
         </View>
       </View>
@@ -94,7 +104,7 @@ function Row({ row }: { row: TimelineRow }) {
         <View style={styles.clashRow}>
           <View style={styles.gutter} />
           <Text style={styles.overflow}>
-            +{row.overflow} more at {clock(row.startsAt)}
+            +{row.overflow} more at {clock(row.startsAt, timeZone)}
           </Text>
         </View>
       ) : null}
@@ -106,14 +116,15 @@ export function PlanScreen() {
   const insets = useSafeAreaInsets();
   const items = usePlan((s) => s.items);
   const remove = usePlan((s) => s.remove);
+  const timeZone = usePlan((s) => s.timeZone);
 
-  const days = useMemo(() => planDays(items), [items]);
+  const days = useMemo(() => planDays(items, timeZone), [items, timeZone]);
   const [dayIndex, setDayIndex] = useState(0);
   const activeDay = days[Math.min(dayIndex, Math.max(days.length - 1, 0))];
 
   const timeline = useMemo(
-    () => buildTimeline(items, activeDay ?? ""),
-    [items, activeDay]
+    () => buildTimeline(items, activeDay ?? "", timeZone),
+    [items, activeDay, timeZone]
   );
 
   if (items.length === 0) {
@@ -152,7 +163,7 @@ export function PlanScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
       >
         {timeline.rows.map((row, i) => (
-          <Row key={row.kind === "group" ? row.startsAt + i : `gap-${i}`} row={row} />
+          <Row key={row.kind === "group" ? row.startsAt + i : `gap-${i}`} row={row} timeZone={timeZone} />
         ))}
 
         {/* Docked above nothing in particular: a person has no place on a time
