@@ -15,6 +15,7 @@ export function TimeRail({
   kind,
   untimedLabel,
   timeZone,
+  note,
 }: {
   startsAt: string | null;
   endsAt: string | null;
@@ -23,6 +24,8 @@ export function TimeRail({
   untimedLabel?: string;
   /** The venue's zone. A schedule is written in the conference's wall clock. */
   timeZone?: string;
+  /** Replaces the day chip. Used to say the time belongs to their session. */
+  note?: string;
 }) {
   const state = railState(startsAt, endsAt, kind, new Date(), timeZone);
 
@@ -53,9 +56,16 @@ export function TimeRail({
 
   return (
     <View style={[styles.rail, hot && { backgroundColor: colors.urgentWash }]}>
-      <Text style={[styles.chip, { color: ink }]}>
-        {state.kind === "urgent" ? state.lead : state.kind === "underway" ? "UNDER WAY" : state.day}
+      <Text style={[styles.chip, { color: ink }]} numberOfLines={1}>
+        {state.kind === "urgent"
+          ? state.lead
+          : state.kind === "underway"
+            ? "UNDER WAY"
+            : (note ?? state.day)}
       </Text>
+      {note && state.kind === "scheduled" ? (
+        <Text style={[styles.chip, { color: ink }]}>{state.day}</Text>
+      ) : null}
       {/* The clock survives every state. Only the colour and one line of copy
           change, so the card does not reflow as a session approaches. */}
       <Text style={[styles.start, { color: ink }]}>{state.start}</Text>

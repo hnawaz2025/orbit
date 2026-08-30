@@ -30,6 +30,12 @@ export function RecommendationCard({
   timeZone?: string;
 }) {
   const place = shortPlace(item.locationName);
+
+  // A speaker has no time of their own, but they are findable at their
+  // session. Showing "ANY TIME" for someone you were told to go and meet is
+  // technically true and practically useless -- the question is where they
+  // will be, and their talk answers it.
+  const speakingAt = item.startsAt ? null : item.linked.find((l) => l.startsAt);
   // For a talk this is the speaker you can walk up to; for a person it is the
   // talk that explains why they are here. Either way the other end is the
   // actionable half, so it earns a row of its own rather than a metadata line.
@@ -44,11 +50,12 @@ export function RecommendationCard({
         style={({ pressed }) => [styles.body, pressed && styles.pressed]}
       >
         <TimeRail
-          startsAt={item.startsAt}
-          endsAt={item.endsAt}
-          kind={item.kind}
+          startsAt={item.startsAt ?? speakingAt?.startsAt ?? null}
+          endsAt={item.endsAt ?? speakingAt?.endsAt ?? null}
+          kind={speakingAt ? "TALK" : item.kind}
           untimedLabel={place ?? undefined}
           timeZone={timeZone}
+          note={speakingAt ? "SPEAKING" : undefined}
         />
 
         <View style={styles.main}>
@@ -64,6 +71,10 @@ export function RecommendationCard({
           {place && item.startsAt ? (
             <Text style={styles.place} numberOfLines={2}>
               {place}
+            </Text>
+          ) : speakingAt?.locationName ? (
+            <Text style={styles.place} numberOfLines={2}>
+              {shortPlace(speakingAt.locationName)}
             </Text>
           ) : null}
         </View>

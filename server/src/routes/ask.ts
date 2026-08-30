@@ -136,16 +136,27 @@ askRouter.post(
         description: true,
         enrichedText: true,
         subtitle: true,
+        profileUrl: true,
         outgoing: {
           select: {
             kind: true,
-            to: { select: { id: true, kind: true, title: true, subtitle: true, locationName: true } },
+            to: {
+              select: {
+                id: true, kind: true, title: true, subtitle: true,
+                locationName: true, startsAt: true, endsAt: true,
+              },
+            },
           },
         },
         incoming: {
           select: {
             kind: true,
-            from: { select: { id: true, kind: true, title: true, subtitle: true, locationName: true } },
+            from: {
+              select: {
+                id: true, kind: true, title: true, subtitle: true,
+                locationName: true, startsAt: true, endsAt: true,
+              },
+            },
           },
         },
       },
@@ -204,9 +215,27 @@ askRouter.post(
     const recommendations: RecommendedEntity[] = ranked.map((candidate) => {
       const row = detailById.get(candidate.id);
 
+      const toLinked = (
+        other: {
+          id: string; kind: RecommendedEntity["kind"]; title: string;
+          subtitle: string | null; locationName: string | null;
+          startsAt: Date | null; endsAt: Date | null;
+        },
+        relation: LinkedEntity["relation"]
+      ): LinkedEntity => ({
+        id: other.id,
+        kind: other.kind,
+        title: other.title,
+        subtitle: other.subtitle,
+        locationName: other.locationName,
+        startsAt: other.startsAt?.toISOString() ?? null,
+        endsAt: other.endsAt?.toISOString() ?? null,
+        relation,
+      });
+
       const linked: LinkedEntity[] = [
-        ...(row?.outgoing ?? []).map((link) => ({ ...link.to, relation: link.kind })),
-        ...(row?.incoming ?? []).map((link) => ({ ...link.from, relation: link.kind })),
+        ...(row?.outgoing ?? []).map((link) => toLinked(link.to, link.kind)),
+        ...(row?.incoming ?? []).map((link) => toLinked(link.from, link.kind)),
       ];
 
       return {
@@ -220,6 +249,7 @@ askRouter.post(
         endsAt: candidate.endsAt?.toISOString() ?? null,
         rank: candidate.rank,
         reason: reasons.get(candidate.id) ?? "",
+        profileUrl: row?.profileUrl ?? null,
         linked,
       };
     });

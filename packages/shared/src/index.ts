@@ -42,6 +42,16 @@ export interface LinkedEntity {
   subtitle: string | null;
   locationName: string | null;
   relation: LinkKind;
+  /**
+   * When the linked thing happens.
+   *
+   * Carried because it is the answer to the only question that matters about a
+   * person: where will they be. A speaker has no time of their own -- they are
+   * not scheduled -- but they are findable at their session, so "meet Ishaan
+   * Gupta" is only actionable as "he is on at 15:00 on the Main Stage".
+   */
+  startsAt: IsoDateTime | null;
+  endsAt: IsoDateTime | null;
 }
 
 export interface RecommendedEntity {
@@ -62,6 +72,15 @@ export interface RecommendedEntity {
    * sentence, not the ordering it arrives in.
    */
   reason: string;
+
+  /**
+   * A public profile to connect on, where one was confirmed.
+   *
+   * The exchange this product exists to cause usually ends with "let us
+   * connect", and having the link already there is the difference between an
+   * intention and a connection.
+   */
+  profileUrl: string | null;
 
   linked: LinkedEntity[];
 }

@@ -1,4 +1,4 @@
-import { FlatList, StyleSheet, Text, View } from "react-native";
+import { SectionList, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RecommendationCard } from "../components/RecommendationCard";
@@ -31,12 +31,33 @@ export function ResultsScreen({ navigation, route }: Props) {
   const note = diagnosticsLine(result.diagnostics);
   const { weakMatch } = result.diagnostics;
 
+  // Split rather than interleaved. A person is someone you walk up to and a
+  // session is somewhere you sit -- different actions, different timing, and a
+  // mixed list makes the reader do the sorting. Order follows rank, so
+  // whichever the question was really about leads.
+  const people = result.recommendations.filter((r) => r.kind === "PERSON");
+  const rest = result.recommendations.filter((r) => r.kind !== "PERSON");
+  const peopleFirst = (people[0]?.rank ?? Infinity) < (rest[0]?.rank ?? Infinity);
+
+  const sections = [
+    { key: "people", title: "PEOPLE TO MEET", data: people },
+    { key: "sessions", title: "SESSIONS", data: rest },
+  ]
+    .filter((section) => section.data.length > 0)
+    .sort((a, b) => (a.key === "people" ? (peopleFirst ? -1 : 1) : peopleFirst ? 1 : -1));
+
   return (
-    <FlatList
+    <SectionList
       style={styles.list}
       contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
-      data={result.recommendations}
+      sections={sections}
       keyExtractor={(item) => item.id}
+      stickySectionHeadersEnabled={false}
+      renderSectionHeader={({ section }) =>
+        // Only worth a heading when both kinds are present; a lone heading
+        // above a single list is noise.
+        sections.length > 1 ? <Text style={styles.sectionHeader}>{section.title}</Text> : null
+      }
       ListHeaderComponent={
         <View style={styles.header}>
           <Text style={styles.label}>YOU ASKED</Text>
@@ -63,6 +84,7 @@ export function ResultsScreen({ navigation, route }: Props) {
         />
       )}
       ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
+      SectionSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
       ListEmptyComponent={
         <View style={styles.empty}>
           <Text style={styles.emptyTitle}>Nothing here matches that.</Text>
@@ -83,6 +105,12 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg },
   header: { marginBottom: spacing.lg, gap: spacing.xs },
   label: { ...type.label, color: colors.textMuted },
+  sectionHeader: {
+    ...type.label,
+    color: colors.textMuted,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+  },
   question: { ...type.title, color: colors.textPrimary },
   caveat: {
     marginTop: spacing.sm,

@@ -135,6 +135,24 @@ function confirms(results: SerpResult[], token: string): boolean {
   );
 }
 
+/**
+ * A profile the attendee can actually connect on.
+ *
+ * Taken only from a result set that already passed the employer confirmation,
+ * so the profile belongs to this person rather than to someone who shares
+ * their name -- the same rule that governs the enrichment text itself. Company
+ * pages and post URLs are skipped; only a personal profile is useful for the
+ * thing this is for, which is "let us connect" at the end of a conversation.
+ */
+function findProfile(results: SerpResult[]): string | undefined {
+  for (const result of results) {
+    const url = result.link ?? "";
+    const match = url.match(/^https?:\/\/([a-z]{2,3}\.)?linkedin\.com\/in\/[A-Za-z0-9._-]+/i);
+    if (match) return match[0];
+  }
+  return undefined;
+}
+
 function condense(results: SerpResult[]): string {
   return results
     .slice(0, 4)
@@ -211,7 +229,11 @@ export async function enrichEntities(
         where: { id: entity.id },
         // enrichedAt is stamped so a later run skips this row, and so a stale
         // enrichment is visible rather than indistinguishable from a fresh one.
-        data: { enrichedText: text, enrichedAt: new Date() },
+        data: {
+          enrichedText: text,
+          enrichedAt: new Date(),
+          profileUrl: findProfile(results),
+        },
       });
       enriched++;
     } catch (error) {

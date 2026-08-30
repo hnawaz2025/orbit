@@ -56,6 +56,15 @@ model Entity {
   enrichedText String?
   enrichedAt   DateTime?
 
+  /// A public profile to connect on, when one could be confirmed.
+  ///
+  /// Only ever set from a search that already corroborated the person's
+  /// employer, so it belongs to them rather than to someone with the same
+  /// name. Meeting someone is the point of the product and the exchange
+  /// usually ends with "let's connect" -- having the link ready is the
+  /// difference between an intention and a connection.
+  profileUrl String?
+
   /// Room name or booth number, as printed in the program.
   locationName String?
   /// Null for entities that aren't time-bound (a booth is staffed all day).

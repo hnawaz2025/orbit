@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Button } from "../components/Button";
@@ -75,6 +75,20 @@ export function DetailScreen({ route }: Props) {
 
       {item.description ? <Text style={styles.body}>{item.description}</Text> : null}
 
+      {/* The conversation this product exists to cause usually ends with
+          "let's connect". Having the link already there is the difference
+          between an intention and a connection. */}
+      {item.profileUrl ? (
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel={`Open ${item.title}'s LinkedIn profile`}
+          onPress={() => Linking.openURL(item.profileUrl!).catch(() => {})}
+          style={({ pressed }) => [styles.connect, pressed && { opacity: 0.85 }]}
+        >
+          <Text style={styles.connectText}>Connect on LinkedIn</Text>
+        </Pressable>
+      ) : null}
+
       {/* The actionable other end. A matched talk surfaces the person you can
           actually walk up to, which is the half you cannot get from a schedule. */}
       {item.linked.length > 0 && (
@@ -112,6 +126,16 @@ const styles = StyleSheet.create({
   factLabel: { ...type.label, color: colors.textMuted },
   factValue: { ...type.cardTitle, color: colors.textPrimary },
   body: { ...type.body, color: colors.textSecondary },
+  connect: {
+    minHeight: 52,
+    borderRadius: radius.input,
+    borderWidth: 1,
+    borderColor: colors.person,
+    backgroundColor: colors.personWash,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  connectText: { ...type.cardTitle, color: colors.person },
   linked: { gap: spacing.sm, marginTop: spacing.sm },
   linkedLabel: { ...type.label, color: colors.textMuted },
   linkRow: {
