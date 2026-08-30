@@ -105,6 +105,10 @@ export async function explainRecommendations(input: ExplainInput): Promise<Map<s
         system: SYSTEM_PROMPT,
         user: userPrompt,
         correctionNote,
+      // OpenAI, not the extraction model. This sentence is the product, it
+      // runs once per question rather than once per chunk, and the small model
+      // both hedged ("might have practical insights") and dropped entries.
+      provider: "openai",
         // A little warmth. This line is meant to be said out loud to a stranger
         // in a hallway, and at zero it reads like a form letter.
         temperature: 0.4,

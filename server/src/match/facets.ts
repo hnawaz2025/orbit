@@ -76,6 +76,11 @@ export async function extractFacets(rawText: string): Promise<QueryFacets> {
       system: SYSTEM_PROMPT,
       user: rawText,
       correctionNote,
+      // OpenAI, not the extraction model. This decides what the question
+      // means, and a 7B answering "tell me people i want to meet from Google"
+      // with {"stack": ["Google", "OpenAI"]} -- no goal, no seeking -- made
+      // every stage downstream work from a misreading.
+      provider: "openai",
       // Interpretation, not generation. Near-zero so the same question asked
       // twice reaches the same sessions.
       temperature: 0,

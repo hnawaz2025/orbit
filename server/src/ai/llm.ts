@@ -23,9 +23,22 @@ const client = new OpenAI({
   maxRetries: 1,
 });
 
+// Serves embeddings, Whisper, and the per-question reasoning calls. Kept
+// separate from the Featherless client because it is a different account with
+// a different concurrency ceiling -- one of the reasons to move the
+// user-facing calls here at all.
+const embeddingClient = new OpenAI({ apiKey: env.OPENAI_API_KEY, timeout: 60_000 });
+
+export type Provider = "featherless" | "openai";
+
 export interface CompleteInput {
   system: string;
   user: string;
+  /**
+   * Which provider answers. Defaults to Featherless, which serves the batch
+   * extraction path; the per-question calls ask for "openai" explicitly.
+   */
+  provider?: Provider;
   /** Appended by callForJson when re-asking after a malformed response. */
   correctionNote?: string;
   /**
@@ -60,16 +73,35 @@ export async function complete({
   temperature = 0.2,
   model,
   maxTokens = 4096,
+  provider = "featherless",
 }: CompleteInput): Promise<string> {
-  const response = await client.chat.completions.create({
-    model: model ?? env.FEATHERLESS_MODEL!,
-    temperature,
-    max_tokens: maxTokens,
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: correctionNote ? `${user}\n\n${correctionNote}` : user },
-    ],
-  });
+  const usingOpenAi = provider === "openai";
+
+  const messages = [
+    { role: "system" as const, content: system },
+    { role: "user" as const, content: correctionNote ? `${user}\n\n${correctionNote}` : user },
+  ];
+
+  // The two providers disagree about how to cap a response. OpenAI's current
+  // models reject max_tokens outright -- "Unsupported parameter: 'max_tokens'
+  // is not supported with this model" -- while Featherless only understands
+  // that name. Sending the wrong one is a 400, not a degraded answer, so this
+  // is not a preference.
+  const response = await (usingOpenAi ? embeddingClient : client).chat.completions.create(
+    usingOpenAi
+      ? {
+          model: model ?? env.REASONING_MODEL,
+          temperature,
+          max_completion_tokens: maxTokens,
+          messages,
+        }
+      : {
+          model: model ?? env.FEATHERLESS_MODEL!,
+          temperature,
+          max_tokens: maxTokens,
+          messages,
+        }
+  );
 
   const choice = response.choices[0]?.message as
     | { content?: string | null; reasoning?: string | null }
@@ -93,12 +125,6 @@ export async function complete({
 
   return content;
 }
-
-// Embeddings come from OpenAI rather than Featherless: the corpus is a few
-// hundred rows, so cost is negligible, and text-embedding-3-small is a known
-// quantity where an open-weight embedding model's quality would be one more
-// unvalidated thing during a week where nothing else can slip.
-const embeddingClient = new OpenAI({ apiKey: env.OPENAI_API_KEY, timeout: 60_000 });
 
 export async function embed(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];

@@ -20,6 +20,22 @@ const baseSchema = z.object({
   OPENAI_API_KEY: z.string().min(1, "OPENAI_API_KEY is required (embeddings + Whisper)"),
   EMBEDDING_MODEL: z.string().default("text-embedding-3-small"),
 
+  /**
+   * The model that reads a question and writes the reasons.
+   *
+   * Separate from the extraction model because the jobs are not alike.
+   * Extraction is transcription over a batch, where a small model is
+   * sufficient and its cost is what matters. This runs once per question, in
+   * front of a person, and produces the two things the product is actually
+   * made of: what they meant, and why each result is for them.
+   *
+   * A 7B model was doing both. Asked "tell me people i want to meet from
+   * Google and OpenAI" it returned facets of {"stack": ["Google", "OpenAI"]} --
+   * no goal, no seeking -- so the preference for people never fired. The same
+   * question here returns seeking: "an expert to talk to".
+   */
+  REASONING_MODEL: z.string().default("gpt-5.4-mini"),
+
   // Optional on purpose. Enrichment makes thin speaker entries matchable, but
   // the corpus is still servable without it -- a speaker's own talk abstract
   // is the richer signal anyway. Absent key means enrichment is skipped, not
