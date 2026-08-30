@@ -28,6 +28,19 @@ const BATCH_SIZE = 96;
 const MAX_CHARS = 8000;
 
 /**
+ * Tags that are filing metadata rather than meaning.
+ *
+ * A pass tier is on 193 of 198 talks, a conference name on 104, a session
+ * format on 82. Embedding them adds the same tokens to almost every vector,
+ * which pulls the whole corpus toward a common centroid and blunts exactly the
+ * distinctions retrieval depends on. They still live on the entity -- the pass
+ * filter needs them -- they just do not belong in the text that decides what a
+ * session is about.
+ */
+const ADMINISTRATIVE_TAG =
+  /^(open|pro|premium|workshop)\s+pass$|^invite only$|^(api world|ai techworld|cloudx)$|session\s*\(|^certificate/i;
+
+/**
  * The text that represents an entity for retrieval.
  *
  * Enriched text is included rather than embedded separately, because a speaker
@@ -39,6 +52,10 @@ const MAX_CHARS = 8000;
  * Exported so the match layer can embed a *query* through a comparable path,
  * and so this is unit-testable without a database.
  */
+export function topicTags(tags: string[]): string[] {
+  return tags.filter((tag) => !ADMINISTRATIVE_TAG.test(tag.trim()));
+}
+
 export function embeddingTextFor(
   entity: Pick<Entity, "kind" | "title" | "subtitle" | "description" | "enrichedText" | "tags">
 ): string {
@@ -47,9 +64,10 @@ export function embeddingTextFor(
     entity.subtitle,
     entity.description,
     entity.enrichedText,
-    // Tags last: they are keywords, and putting them ahead of prose would let a
-    // tag list dominate the vector for entities whose description is thin.
-    entity.tags.length > 0 ? entity.tags.join(", ") : null,
+    // Topic tags only, and last: they are keywords, and putting them ahead of
+    // prose would let a tag list dominate the vector for entities whose
+    // description is thin.
+    topicTags(entity.tags).join(", ") || null,
   ].filter((part): part is string => typeof part === "string" && part.trim().length > 0);
 
   return parts.join("\n\n").slice(0, MAX_CHARS);
