@@ -61,6 +61,15 @@ export interface RetrieveOptions {
    * they are in the room.
    */
   ensureKinds?: EntityKind[];
+
+  /**
+   * Ids that must be considered whatever their similarity.
+   *
+   * Used for affiliation: a person whose only connection to the question is
+   * that they work at the company it named will not be near it in embedding
+   * space, so ranking would never see them.
+   */
+  ensureIds?: Set<string>;
   /**
    * How many candidates to hand to filtering and ranking.
    *
@@ -139,12 +148,25 @@ export async function retrieveCandidates(
   const byScore = scored.sort((a, b) => b.similarity - a.similarity);
   const head = byScore.slice(0, limit);
 
-  if (!options.ensureKinds || options.ensureKinds.length === 0) return head;
-
   const present = new Set(head.map((candidate) => candidate.id));
-  const additions = byScore
-    .filter((candidate) => options.ensureKinds!.includes(candidate.kind) && !present.has(candidate.id))
-    .slice(0, ENSURED_PER_KIND);
+  const additions: Candidate[] = [];
+
+  if (options.ensureIds && options.ensureIds.size > 0) {
+    for (const candidate of byScore) {
+      if (options.ensureIds.has(candidate.id) && !present.has(candidate.id)) {
+        additions.push(candidate);
+        present.add(candidate.id);
+      }
+    }
+  }
+
+  if (options.ensureKinds && options.ensureKinds.length > 0) {
+    additions.push(
+      ...byScore
+        .filter((c) => options.ensureKinds!.includes(c.kind) && !present.has(c.id))
+        .slice(0, ENSURED_PER_KIND)
+    );
+  }
 
   return [...head, ...additions];
 }

@@ -59,6 +59,16 @@ const MAX_LINK_BONUS = 0.12;
  */
 const KIND_MISMATCH_FACTOR = 0.75;
 
+/**
+ * Added to anything affiliated with an organisation the question named.
+ *
+ * Large, and deliberately so. Naming a company is not a hint about topic, it
+ * is the question -- someone asking who is here from Google wants the Google
+ * engineers ahead of a strong talk about agents, and no amount of cosine
+ * similarity will put them there on its own.
+ */
+const AFFILIATION_BONUS = 0.35;
+
 export interface RankedCandidate extends Candidate {
   score: number;
   rank: number;
@@ -90,19 +100,24 @@ export function scoreCandidate(
   candidate: Candidate,
   now: Date,
   linkedBonus: number = 0,
-  preferred: EntityKind[] | null = null
+  preferred: EntityKind[] | null = null,
+  affiliated: Set<string> | null = null
 ): number {
   const durability = candidate.isDurable ? DURABLE_FACTOR : 1;
   const kindFit = !preferred || preferred.includes(candidate.kind) ? 1 : KIND_MISMATCH_FACTOR;
+  const affiliation = affiliated?.has(candidate.id) ? AFFILIATION_BONUS : 0;
   return (
-    candidate.similarity * durability * kindFit * reachabilityFactor(candidate, now) + linkedBonus
+    candidate.similarity * durability * kindFit * reachabilityFactor(candidate, now) +
+    linkedBonus +
+    affiliation
   );
 }
 
 export function rankCandidates(
   candidates: Candidate[],
   now: Date,
-  preferred: EntityKind[] | null = null
+  preferred: EntityKind[] | null = null,
+  affiliated: Set<string> | null = null
 ): RankedCandidate[] {
   const present = new Set(candidates.map((candidate) => candidate.id));
 
@@ -113,7 +128,7 @@ export function rankCandidates(
     const connections = candidate.linkedIds.filter((id) => id !== candidate.id && present.has(id));
     const bonus = Math.min(connections.length * LINK_BONUS, MAX_LINK_BONUS);
 
-    return { candidate, score: scoreCandidate(candidate, now, bonus, preferred) };
+    return { candidate, score: scoreCandidate(candidate, now, bonus, preferred, affiliated) };
   });
 
   return scored

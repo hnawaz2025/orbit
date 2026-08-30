@@ -4,6 +4,7 @@ import { PASS_TIERS, type AskResponse, type LinkedEntity, type RecommendedEntity
 import { embed } from "../ai/llm";
 import { prisma } from "../db";
 import { AppError } from "../errors";
+import { affiliatedEntityIds, findOrganisations, knownOrganisations } from "../match/affiliation";
 import { extractFacets, embeddingTextForQuery } from "../match/facets";
 import { explainRecommendations } from "../match/explain";
 import { filterCandidates } from "../match/filter";
@@ -71,13 +72,25 @@ askRouter.post(
     const facets = await extractFacets(text);
     const [queryVector] = await embed([embeddingTextForQuery(text, facets)]);
 
-    const preferred = preferredKinds(facets.seeking);
+    // Deterministic, and matched only against companies the corpus already
+    // knows about -- so this cannot fire on ordinary prose, and needs no extra
+    // model call.
+    const organisations = findOrganisations(text, await knownOrganisations(event.id));
+    const affiliated = await affiliatedEntityIds(event.id, organisations);
+
+    // Naming a company is itself a request for people. The facet extractor
+    // often leaves `seeking` empty on these ("tell me people from Google" came
+    // back as stack: ["Google"] and nothing else), so the preference is
+    // inferred here rather than depending on it.
+    const preferred =
+      preferredKinds(facets.seeking) ?? (affiliated.size > 0 ? (["PERSON"] as const).slice() : null);
 
     // Preference is applied at retrieval as well as at ranking. Ranking can
     // only reorder what it is given, and for a topical question the top of the
     // similarity list is entirely sessions.
     const retrieved = await retrieveCandidates(event.id, queryVector, {
       ensureKinds: preferred ?? undefined,
+      ensureIds: affiliated,
     });
 
     // An empty retrieval means the corpus has no embeddings, not that the
@@ -100,7 +113,7 @@ askRouter.post(
       pass,
     });
 
-    const scored = rankCandidates(filtered.kept, now, preferred).filter(
+    const scored = rankCandidates(filtered.kept, now, preferred, affiliated).filter(
       (candidate) => candidate.score >= SCORE_FLOOR
     );
 
