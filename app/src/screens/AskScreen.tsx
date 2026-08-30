@@ -14,8 +14,10 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { api } from "../api/client";
 import { Button } from "../components/Button";
 import { MicButton } from "../components/MicButton";
+import { PassPicker } from "../components/PassPicker";
 import { useVoiceRecording } from "../hooks/useVoiceRecording";
 import { usePlan } from "../store/usePlan";
+import { usePass } from "../store/usePass";
 import { colors, radius, spacing, type } from "../theme";
 import type { AskStackParamList } from "../navigation/types";
 
@@ -37,10 +39,14 @@ export function AskScreen({ navigation, route }: Props) {
   const [error, setError] = useState<string | null>(null);
   const voice = useVoiceRecording();
   const hydrate = usePlan((s) => s.hydrate);
+  const pass = usePass((s) => s.pass);
+  const setPass = usePass((s) => s.set);
+  const hydratePass = usePass((s) => s.hydrate);
 
   useEffect(() => {
     void hydrate();
-  }, [hydrate]);
+    void hydratePass();
+  }, [hydrate, hydratePass]);
 
   async function finishSpeaking() {
     const heard = await voice.stopRecordingAndTranscribe();
@@ -59,7 +65,7 @@ export function AskScreen({ navigation, route }: Props) {
     setBusy(true);
     setError(null);
     try {
-      const result = await api.ask(eventSlug, question);
+      const result = await api.ask(eventSlug, question, pass);
       navigation.navigate("Results", { question, result });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
@@ -98,6 +104,8 @@ export function AskScreen({ navigation, route }: Props) {
         {error || voice.error ? (
           <Text style={styles.error}>{error ?? voice.error}</Text>
         ) : null}
+
+        <PassPicker value={pass} onChange={setPass} />
 
         <MicButton state={voice.state} onStart={voice.startRecording} onStop={finishSpeaking} />
 

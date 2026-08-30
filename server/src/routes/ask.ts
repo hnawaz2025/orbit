@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import type { AskResponse, LinkedEntity, RecommendedEntity } from "@orbit/shared";
+import { PASS_TIERS, type AskResponse, type LinkedEntity, type RecommendedEntity } from "@orbit/shared";
 import { embed } from "../ai/llm";
 import { prisma } from "../db";
 import { AppError } from "../errors";
@@ -31,12 +31,13 @@ const SCORE_FLOOR = 0.2;
 const askSchema = z.object({
   eventSlug: z.string().min(1),
   text: z.string().min(1).max(2000),
+  pass: z.enum(PASS_TIERS).optional(),
 });
 
 askRouter.post(
   "/",
   asyncHandler(async (req: DeviceRequest, res) => {
-    const { eventSlug, text } = askSchema.parse(req.body);
+    const { eventSlug, text, pass } = askSchema.parse(req.body);
 
     const event = await prisma.event.findUnique({ where: { slug: eventSlug } });
     if (!event) {
@@ -78,6 +79,7 @@ askRouter.post(
       // Level is only applied when the attendee placed themselves. Most people
       // describe a problem, not a seniority, so this is usually absent.
       attendeeLevel: normaliseLevel(facets.seeking ?? null),
+      pass,
     });
 
     const scored = rankCandidates(filtered.kept, now, preferred).filter(
@@ -197,6 +199,7 @@ askRouter.post(
       diagnostics: {
         endedCount: filtered.endedCount,
         levelFilteredCount: filtered.levelFilteredCount,
+        passFilteredCount: filtered.passFilteredCount,
         corpusMiss,
       },
     };

@@ -18,6 +18,9 @@ type Props = NativeStackScreenProps<AskStackParamList, "Results">;
 function diagnosticsLine(d: Props["route"]["params"]["result"]["diagnostics"]): string | null {
   const parts: string[] = [];
   if (d.endedCount > 0) parts.push(`${d.endedCount} had already ended`);
+  // Named as the ticket rather than as our judgement, because that is what it
+  // is -- and so an attendee who upgraded knows what changes.
+  if (d.passFilteredCount > 0) parts.push(`${d.passFilteredCount} need a different pass`);
   if (d.levelFilteredCount > 0) parts.push(`${d.levelFilteredCount} were a different level`);
   return parts.length > 0 ? `Not shown: ${parts.join(", ")}.` : null;
 }

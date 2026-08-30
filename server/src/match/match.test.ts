@@ -30,6 +30,7 @@ function candidate(overrides: Partial<Candidate> = {}): Candidate {
     isDurable: false,
     similarity: 0.5,
     linkedIds: [],
+    tags: [],
     ...overrides,
   };
 }
@@ -357,5 +358,47 @@ describe("reserveForPreferredKinds", () => {
     const list = ranked([["t1", "TALK"], ["t2", "TALK"], ["t3", "TALK"], ["p1", "PERSON"]]);
     const out = reserveForPreferredKinds(list, ["PERSON"], 5);
     assert.deepEqual(out.map((c) => c.rank), [1, 2, 3, 4]);
+  });
+});
+
+describe("filtering by what the ticket admits", () => {
+  test("removes sessions the pass does not admit, and counts them separately", () => {
+    // Counted apart from the level filter because the reason differs: a level
+    // mismatch is our judgement about fit, a pass mismatch is a door that will
+    // not open.
+    const outcome = filterCandidates({
+      candidates: [
+        candidate({ id: "open", tags: ["OPEN Pass", "PRO Pass"] }),
+        candidate({ id: "proOnly", tags: ["PRO Pass", "PREMIUM Pass"] }),
+      ],
+      now: NOW,
+      pass: "OPEN",
+    });
+
+    assert.deepEqual(outcome.kept.map((c) => c.id), ["open"]);
+    assert.equal(outcome.passFilteredCount, 1);
+    assert.equal(outcome.levelFilteredCount, 0);
+  });
+
+  test("shows everything when no pass was stated", () => {
+    const outcome = filterCandidates({
+      candidates: [
+        candidate({ id: "a", tags: ["PRO Pass"] }),
+        candidate({ id: "b", tags: ["OPEN Pass"] }),
+      ],
+      now: NOW,
+    });
+    assert.equal(outcome.kept.length, 2);
+    assert.equal(outcome.passFilteredCount, 0);
+  });
+
+  test("never gates a person or a booth", () => {
+    // A speaker is not behind a ticket tier, and they carry no pass tags.
+    const outcome = filterCandidates({
+      candidates: [candidate({ id: "p", kind: "PERSON", tags: [], startsAt: null, endsAt: null })],
+      now: NOW,
+      pass: "OPEN",
+    });
+    assert.equal(outcome.kept.length, 1);
   });
 });

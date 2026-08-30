@@ -78,12 +78,52 @@ export interface AskDiagnostics {
   levelFilteredCount: number;
   /** True when nothing in the corpus cleared the score threshold. */
   corpusMiss: boolean;
+  /** Sessions their pass does not admit. Reported, never silently dropped. */
+  passFilteredCount: number;
+}
+
+/**
+ * What the attendee actually bought.
+ *
+ * Ordered by what it admits. A conference sells access in tiers and prints the
+ * tier on every session, so recommending a PRO workshop to someone holding an
+ * OPEN pass sends them to a door that will not open -- the same failure as an
+ * invented room, and at API World it would apply to 40% of the programme.
+ */
+export const PASS_TIERS = ["OPEN", "PRO", "PREMIUM"] as const;
+export type PassTier = (typeof PASS_TIERS)[number];
+
+/** How each tier is written in the conference's own tags. */
+const PASS_TAG: Record<PassTier, string> = {
+  OPEN: "open pass",
+  PRO: "pro pass",
+  PREMIUM: "premium pass",
+};
+
+/**
+ * Whether a pass admits an entity.
+ *
+ * An entity carrying no pass tag at all is admitted. Absence means the source
+ * did not say, and refusing to show a session because a tag is missing would
+ * turn an incomplete listing into a smaller conference.
+ */
+export function admits(tier: PassTier, tags: string[]): boolean {
+  const lower = tags.map((t) => t.toLowerCase());
+  const passTags = lower.filter((t) => t.endsWith("pass") || t === "invite only");
+  if (passTags.length === 0) return true;
+
+  // Invite-only is not a tier anyone can buy into.
+  if (passTags.includes("invite only") && passTags.length === 1) return false;
+
+  return passTags.includes(PASS_TAG[tier]);
 }
 
 export interface AskRequest {
   eventSlug: string;
   /** Exactly what the attendee typed or said. Never pre-summarised. */
   text: string;
+  /** Omitted means show everything, which is the right default before they say. */
+  pass?: PassTier;
 }
 
 export interface AskResponse {

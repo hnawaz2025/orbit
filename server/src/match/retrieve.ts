@@ -128,6 +128,7 @@ export async function retrieveCandidates(
       // Links are undirected for ranking purposes. A talk that points at its
       // speaker and a speaker pointed at by their talk are the same
       // relationship, and the tie-breaker should see it from either end.
+      tags: entity.tags,
       linkedIds: [
         ...entity.outgoing.map((link) => link.toId),
         ...entity.incoming.map((link) => link.fromId),

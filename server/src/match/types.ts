@@ -30,6 +30,9 @@ export interface Candidate {
 
   /** Ids of entities this one is linked to (speaker, employer, booth). */
   linkedIds: string[];
+
+  /** The conference's own tags, including its pass tiers. */
+  tags: string[];
 }
 
 /** Normalised audience level. Null when the page did not print one. */

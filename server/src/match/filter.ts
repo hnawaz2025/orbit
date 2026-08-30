@@ -1,3 +1,4 @@
+import { admits, type PassTier } from "@orbit/shared";
 import { normaliseLevel, type Candidate, type LevelBand } from "./types";
 
 // What gets removed before ranking, and why the removal is always reported.
@@ -19,6 +20,16 @@ export interface FilterInput {
    * queries -- people describe a problem, not a seniority.
    */
   attendeeLevel?: LevelBand | null;
+
+  /**
+   * What the attendee's ticket admits.
+   *
+   * Unlike the level filter, this is not a judgement about fit -- it is a door
+   * that will not open. A PRO workshop recommended to an OPEN pass holder
+   * sends a real person somewhere they cannot go, which is the same damage as
+   * an invented room.
+   */
+  pass?: PassTier | null;
 }
 
 export interface FilterOutcome {
@@ -27,6 +38,8 @@ export interface FilterOutcome {
   endedCount: number;
   /** Sessions dropped as far from the attendee's stated level. */
   levelFilteredCount: number;
+  /** Sessions their pass does not admit. */
+  passFilteredCount: number;
 }
 
 /**
@@ -44,11 +57,12 @@ function isFarFromAttendee(entityLevel: LevelBand, attendeeLevel: LevelBand): bo
 }
 
 export function filterCandidates(input: FilterInput): FilterOutcome {
-  const { candidates, now, attendeeLevel } = input;
+  const { candidates, now, attendeeLevel, pass } = input;
 
   const kept: Candidate[] = [];
   let endedCount = 0;
   let levelFilteredCount = 0;
+  let passFilteredCount = 0;
 
   for (const candidate of candidates) {
     // Over is over. A session that ended is not a recommendation, it is a
@@ -63,6 +77,14 @@ export function filterCandidates(input: FilterInput): FilterOutcome {
       continue;
     }
 
+    // Checked before level, because it is a fact about access rather than an
+    // opinion about fit -- and counted separately so the attendee can be told
+    // their ticket, not our judgement, is what removed these.
+    if (pass && !admits(pass, candidate.tags)) {
+      passFilteredCount++;
+      continue;
+    }
+
     if (attendeeLevel) {
       const entityLevel = normaliseLevel(candidate.level);
       if (entityLevel && isFarFromAttendee(entityLevel, attendeeLevel)) {
@@ -74,5 +96,5 @@ export function filterCandidates(input: FilterInput): FilterOutcome {
     kept.push(candidate);
   }
 
-  return { kept, endedCount, levelFilteredCount };
+  return { kept, endedCount, levelFilteredCount, passFilteredCount };
 }
