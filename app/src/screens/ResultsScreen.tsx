@@ -2,7 +2,7 @@ import { FlatList, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RecommendationCard } from "../components/RecommendationCard";
-import { colors, spacing, type } from "../theme";
+import { colors, radius, spacing, type } from "../theme";
 import type { AskStackParamList } from "../navigation/types";
 
 type Props = NativeStackScreenProps<AskStackParamList, "Results">;
@@ -29,6 +29,7 @@ export function ResultsScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { question, result } = route.params;
   const note = diagnosticsLine(result.diagnostics);
+  const { weakMatch } = result.diagnostics;
 
   return (
     <FlatList
@@ -40,6 +41,18 @@ export function ResultsScreen({ navigation, route }: Props) {
         <View style={styles.header}>
           <Text style={styles.label}>YOU ASKED</Text>
           <Text style={styles.question}>{question}</Text>
+
+          {/* Said before the list rather than after it. An attendee who reads
+              five confident cards and only then learns none of them are really
+              about their problem has already spent the trust. */}
+          {weakMatch ? (
+            <View style={styles.caveat}>
+              <Text style={styles.caveatText}>
+                Nothing here is squarely about that. These are the closest the programme gets —
+                worth a look, but not what you asked for.
+              </Text>
+            </View>
+          ) : null}
         </View>
       }
       renderItem={({ item }) => (
@@ -54,9 +67,9 @@ export function ResultsScreen({ navigation, route }: Props) {
         <View style={styles.empty}>
           <Text style={styles.emptyTitle}>Nothing here matches that.</Text>
           <Text style={styles.emptyBody}>
-            This conference does not seem to cover it. That is a real answer — better than five
-            sessions that nearly fit. Try describing the problem a different way, or a narrower
-            part of it.
+            This conference doesn't cover it. That's a real answer, and a more useful one than
+            five sessions that nearly fit — you'd have walked to one of them. Try a different
+            part of the problem, or ask who might know rather than what to attend.
           </Text>
         </View>
       }
@@ -71,6 +84,13 @@ const styles = StyleSheet.create({
   header: { marginBottom: spacing.lg, gap: spacing.xs },
   label: { ...type.label, color: colors.textMuted },
   question: { ...type.title, color: colors.textPrimary },
+  caveat: {
+    marginTop: spacing.sm,
+    backgroundColor: colors.urgentWash,
+    borderRadius: radius.card,
+    padding: spacing.md,
+  },
+  caveatText: { ...type.meta, color: colors.urgentInk },
   empty: { paddingVertical: spacing.xxl, gap: spacing.sm },
   emptyTitle: { ...type.title, color: colors.textPrimary },
   emptyBody: { ...type.body, color: colors.textSecondary },

@@ -78,6 +78,12 @@ export interface AskDiagnostics {
   levelFilteredCount: number;
   /** True when nothing in the corpus cleared the score threshold. */
   corpusMiss: boolean;
+  /**
+   * True when something was found, but nothing that is really about their
+   * problem. Distinct from corpusMiss: there is a list, and it should be shown
+   * with the caveat rather than presented as answers.
+   */
+  weakMatch: boolean;
   /** Sessions their pass does not admit. Reported, never silently dropped. */
   passFilteredCount: number;
 }

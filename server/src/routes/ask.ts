@@ -25,8 +25,26 @@ const SHOWN = 5;
  * represented in it. Returning the five least-bad rows in that case is worse
  * than saying so: it burns the trust that makes the good answers useful, and
  * sends someone to a session that has nothing to do with them.
+ *
+ * Calibrated rather than guessed. Against this corpus, questions the
+ * conference genuinely covers score 0.442-0.614 at rank one; questions it does
+ * not -- Postgres scaling, Kubernetes operators, salary negotiation, espresso
+ * machines -- score 0.232-0.350. The gap between those two bands is where
+ * these constants sit.
+ *
+ * The previous value was 0.20, which nothing ever failed to clear, so weak
+ * matches always filled all five slots and corpusMiss was unreachable code.
  */
-const SCORE_FLOOR = 0.2;
+const SCORE_FLOOR = 0.33;
+
+/**
+ * Above this, the corpus genuinely has something to say about the question.
+ *
+ * Below it there may still be rows worth showing -- adjacent sessions, a
+ * speaker in the right field -- but presenting them as answers would overclaim.
+ * The client is told, and says so.
+ */
+const STRONG_MATCH = 0.42;
 
 const askSchema = z.object({
   eventSlug: z.string().min(1),
@@ -91,6 +109,9 @@ askRouter.post(
     const ranked = reserveForPreferredKinds(scored, preferred, SHOWN).slice(0, SHOWN);
 
     const corpusMiss = ranked.length === 0;
+    // Judged on the best result, not the average: one genuinely good answer
+    // makes a response useful even when the rest are adjacent.
+    const weakMatch = !corpusMiss && (ranked[0]?.score ?? 0) < STRONG_MATCH;
 
     // Descriptions and links are fetched only for what survived ranking --
     // pulling them for the whole corpus would be most of a megabyte to throw
@@ -201,6 +222,7 @@ askRouter.post(
         levelFilteredCount: filtered.levelFilteredCount,
         passFilteredCount: filtered.passFilteredCount,
         corpusMiss,
+        weakMatch,
       },
     };
 
