@@ -12,5 +12,8 @@
     "ingest": "npm run ingest --workspace server",
     "test": "npm run test --workspace server",
     "typecheck": "npm run typecheck --workspace server"
+  },
+  "engines": {
+    "node": "22.x"
   }
 }
