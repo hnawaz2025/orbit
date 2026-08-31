@@ -20,6 +20,7 @@ export type PlanStackParamList = {
 export type RootTabParamList = {
   AskTab: undefined;
   PlanTab: undefined;
+  InsightsTab: undefined;
 };
 
 /** Convenience for screens registered in both stacks. */

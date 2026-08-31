@@ -184,14 +184,6 @@ export function PlanScreen({ navigation }: Props) {
     () => selectNowNext(items, now, declinedSet),
     [items, declinedSet, now]
   );
-  const beforeNext = useMemo(() => {
-    if (!upNext?.startsAt) return null;
-    const earlier = sortPlan(items).filter(
-      (i) => i.startsAt && Date.parse(i.startsAt) < Date.parse(upNext.startsAt!)
-    );
-    return earlier[earlier.length - 1] ?? null;
-  }, [items, upNext]);
-
   const decisions = useMemo(
     () => decisionsToMake(items, decidedSet, now),
     [items, decidedSet, now]
@@ -268,7 +260,6 @@ export function PlanScreen({ navigation }: Props) {
         {upNext ? (
           <NowNext
             item={upNext}
-            previous={beforeNext}
             timeZone={timeZone}
             onOpen={() => open(upNext.id)}
             onGoing={() =>

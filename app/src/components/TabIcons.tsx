@@ -34,3 +34,14 @@ export function LinkedInIcon({ color, size = 22 }: { color: string; size?: numbe
     </Svg>
   );
 }
+
+/** Bars: the shape of an aggregate. */
+export function InsightsIcon({ color, size = 24 }: { color: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Rect x="3" y="13" width="4.5" height="8" rx="1.2" fill={color} />
+      <Rect x="9.75" y="8" width="4.5" height="13" rx="1.2" fill={color} />
+      <Rect x="16.5" y="3" width="4.5" height="18" rx="1.2" fill={color} />
+    </Svg>
+  );
+}

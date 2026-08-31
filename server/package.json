@@ -7,7 +7,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "npm run build --workspace @orbit/shared && tsx watch src/index.ts",
     "ingest": "tsx src/ingest/run.ts",
     "postinstall": "prisma generate",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",

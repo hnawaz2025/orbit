@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { leaveBy, railState, type PlanItem } from "@orbit/shared";
+import { railState, type PlanItem } from "@orbit/shared";
 import { colors, radius, spacing, type } from "../theme";
 import { shortPlace } from "../utils/place";
 
@@ -18,7 +18,6 @@ function clock(iso: string, timeZone?: string): string {
  */
 export function NowNext({
   item,
-  previous,
   timeZone,
   onOpen,
   onGoing,
@@ -26,7 +25,6 @@ export function NowNext({
   committed,
 }: {
   item: PlanItem;
-  previous: PlanItem | null;
   timeZone?: string;
   onOpen: () => void;
   onGoing: () => void;
@@ -35,9 +33,7 @@ export function NowNext({
   committed?: boolean;
 }) {
   const state = railState(item.startsAt, item.endsAt, item.kind, new Date(), timeZone);
-  const leave = leaveBy(item, previous);
-  const lateToLeave = leave ? Date.now() >= Date.parse(leave) : false;
-  const hot = state.kind === "urgent" || state.kind === "underway" || lateToLeave;
+  const hot = state.kind === "urgent" || state.kind === "underway";
 
   const chip =
     state.kind === "urgent" ? state.lead
@@ -64,16 +60,6 @@ export function NowNext({
           <Text style={styles.place} numberOfLines={2}>{shortPlace(item.locationName)}</Text>
         ) : null}
       </Pressable>
-
-      {/* The one piece of new arithmetic, and the only thing on this card that
-          is actionable rather than informational. */}
-      {leave ? (
-        <View style={styles.walk}>
-          <Text style={[styles.walkText, lateToLeave && styles.walkLate]}>
-            {lateToLeave ? "Leave now" : `Leave by ${clock(leave, timeZone)}`}
-          </Text>
-        </View>
-      ) : null}
 
       {/* Bottom third of the card, for a thumb.
           Saying you are going does not move the card -- this is still where
@@ -130,13 +116,6 @@ const styles = StyleSheet.create({
   time: { ...type.timeHero, color: colors.primary },
   title: { ...type.title, color: colors.textPrimary, marginTop: spacing.xs },
   place: { ...type.place, color: colors.textPrimary },
-  walk: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: spacing.sm,
-  },
-  walkText: { ...type.meta, color: colors.textSecondary },
-  walkLate: { color: colors.urgentInk, fontFamily: "Inter_600SemiBold" },
   actions: { flexDirection: "row", gap: spacing.md, marginTop: spacing.xs },
   action: {
     flex: 1,

@@ -551,19 +551,6 @@ export function selectNowNext(
   return upcoming ?? null;
 }
 
-/**
- * When to leave, given what came before.
- *
- * Only meaningful when the previous item is somewhere else -- two sessions on
- * the same stage need no walking time, and printing one would train people to
- * ignore the row.
- */
-export function leaveBy(item: PlanItem, previous: PlanItem | null): IsoDateTime | null {
-  if (!item.startsAt) return null;
-  if (previous && previous.locationName && item.locationName === previous.locationName) return null;
-  return new Date(Date.parse(item.startsAt) - ROOM_CHANGE_MINUTES * 60_000).toISOString();
-}
-
 export interface Decision {
   /** When the clash happens. */
   startsAt: IsoDateTime;
@@ -608,4 +595,73 @@ export function decisionsToMake(
   }
 
   return decisions;
+}
+
+// ---------------------------------------------------------------------------
+// The organizer's half
+//
+// Every question is retained, anonymously, because the aggregate is a second
+// product: what the people who turned up actually needed, against what was
+// programmed six months earlier. An attendee gets recommendations; an organizer
+// gets the demand signal from their own floor.
+
+export interface LabelCount {
+  label: string;
+  count: number;
+}
+
+export interface UnmetQuestion {
+  text: string;
+  askedAt: IsoDateTime;
+  /** Best score anything in the corpus managed. 0 means nothing cleared the floor. */
+  bestScore: number;
+}
+
+export interface EventInsights {
+  questions: number;
+  /** Distinct devices. Anonymous, and never joined to a person. */
+  attendees: number;
+  /** Questions the programme answered well. */
+  answered: number;
+  /** Answered, but with nothing squarely on topic. */
+  weak: number;
+  /** Nothing in the corpus cleared the floor at all. */
+  unanswered: number;
+
+  topDomains: LabelCount[];
+  topSeeking: LabelCount[];
+
+  /**
+   * The headline. Questions the conference could not answer, most recent
+   * first -- the gap between what was programmed and what was wanted, stated
+   * in the attendee's own words rather than inferred from a survey.
+   */
+  unmet: UnmetQuestion[];
+
+  /** What the programme is actually delivering against. */
+  mostRecommended: { id: string; title: string; kind: EntityKind; times: number }[];
+}
+
+/**
+ * Group free-text facet values into countable labels.
+ *
+ * Facets are written by a model, so the same idea arrives as "API security",
+ * "api security" and "API Security / auth". Lowercasing and trimming collapses
+ * the obvious duplicates; nothing cleverer is attempted, because an organizer
+ * reading a list of what people asked for is better served by slight
+ * duplication than by aggressive clustering that merges two real topics.
+ */
+export function countLabels(values: (string | null | undefined)[], limit = 8): LabelCount[] {
+  const counts = new Map<string, { label: string; count: number }>();
+
+  for (const raw of values) {
+    const value = raw?.trim();
+    if (!value) continue;
+    const key = value.toLowerCase();
+    const existing = counts.get(key);
+    if (existing) existing.count++;
+    else counts.set(key, { label: value, count: 1 });
+  }
+
+  return [...counts.values()].sort((a, b) => b.count - a.count).slice(0, limit);
 }

@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { decisionsToMake, leaveBy, selectNowNext, type PlanItem } from "@orbit/shared";
+import { decisionsToMake, selectNowNext, type PlanItem } from "@orbit/shared";
 
 // Saving is a shortlist, not a commitment. Overlaps are the raw material of
 // the plan rather than its failure state, and the surface's job is to convert
@@ -44,23 +44,6 @@ describe("selectNowNext", () => {
 
   test("returns nothing when the day is done", () => {
     assert.equal(selectNowNext([item("done", 0, 30)], NOW), null);
-  });
-});
-
-describe("leaveBy", () => {
-  test("allows walking time when the room changes", () => {
-    const out = leaveBy(item("b", 90, 120, { locationName: "Expo Stage" }), item("a", 30, 60));
-    assert.equal(out, at(80));
-  });
-
-  test("stays silent when the room does not change", () => {
-    // Warning about back-to-back sessions on one stage teaches people to
-    // ignore the row.
-    assert.equal(leaveBy(item("b", 90, 120), item("a", 30, 60)), null);
-  });
-
-  test("allows walking time when there is nothing before it", () => {
-    assert.equal(leaveBy(item("a", 90, 120), null), at(80));
   });
 });
 

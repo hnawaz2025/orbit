@@ -19,6 +19,7 @@ import { readDevice } from "./middleware/device";
 import { aiRateLimiter, readRateLimiter } from "./middleware/rateLimit";
 import { askRouter } from "./routes/ask";
 import { eventsRouter } from "./routes/events";
+import { insightsRouter } from "./routes/insights";
 import { speechRouter } from "./routes/speech";
 
 const env = loadEnv();
@@ -58,6 +59,8 @@ app.get("/health", async (_req, res) => {
 // read, so throttling them at the same rate would either starve the read or
 // leave the expensive path open.
 app.use("/events", readRateLimiter, eventsRouter);
+// The organizer-facing aggregate of what attendees asked for.
+app.use("/events", readRateLimiter, insightsRouter);
 app.use("/ask", aiRateLimiter, askRouter);
 app.use("/speech", aiRateLimiter, speechRouter);
 

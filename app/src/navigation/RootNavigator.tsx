@@ -2,9 +2,10 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StyleSheet, Text, View } from "react-native";
 import { findConflicts, sortPlan } from "@orbit/shared";
-import { AskIcon, PlanIcon } from "../components/TabIcons";
+import { AskIcon, InsightsIcon, PlanIcon } from "../components/TabIcons";
 import { AskScreen } from "../screens/AskScreen";
 import { DetailScreen } from "../screens/DetailScreen";
+import { InsightsScreen } from "../screens/InsightsScreen";
 import { PlanScreen } from "../screens/PlanScreen";
 import { ResultsScreen } from "../screens/ResultsScreen";
 import { usePlan } from "../store/usePlan";
@@ -100,6 +101,21 @@ export function RootNavigator() {
               <PlanBadge />
             </View>
           ),
+        }}
+      />
+      {/* The organizer's view. A third tab rather than a separate app because
+          the two halves are the same product seen from opposite ends, and in a
+          demo the flip between them is the point. */}
+      <Tabs.Screen
+        name="InsightsTab"
+        component={InsightsScreen}
+        options={{
+          title: "Organisers",
+          headerShown: true,
+          headerStyle: { backgroundColor: colors.background },
+          headerShadowVisible: false,
+          headerTitleStyle: { ...type.cardTitle, color: colors.textPrimary },
+          tabBarIcon: ({ color }) => <InsightsIcon color={color} />,
         }}
       />
     </Tabs.Navigator>
