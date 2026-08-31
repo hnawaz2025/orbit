@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
 import { PASS_TIERS, type AskResponse, type LinkedEntity, type RecommendedEntity } from "@orbit/shared";
@@ -201,11 +202,14 @@ askRouter.post(
     const query = await prisma.query.create({
       data: {
         eventId: event.id,
-        // Anonymous, and never joined to a person. Absent for a caller that
-        // sent no header -- the question is still worth recording, because the
-        // aggregate of what attendees needed is the organizer-facing product.
-        deviceId: req.deviceId ?? "anonymous",
+        // Anonymous, and never joined to a person. A caller that sent no
+        // header gets a per-question identifier rather than a shared literal:
+        // the organizer view counts distinct devices, and collapsing every
+        // header-less client into one "anonymous" reported a crowd as a single
+        // attendee, in the largest type on the screen.
+        deviceId: req.deviceId ?? `anon:${randomUUID()}`,
         rawText: text,
+        pass: pass ?? null,
         structured: facets,
         embedding: queryVector,
         askedAt: now,

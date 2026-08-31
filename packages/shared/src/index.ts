@@ -627,14 +627,20 @@ export interface EventInsights {
   weak: number;
   /** Nothing in the corpus cleared the floor at all. */
   unanswered: number;
+  /**
+   * Questions about the venue rather than the subject -- wifi, food, parking.
+   * Counted apart because a conference failing to answer those is not a
+   * programme gap, and mixing them in buries the gaps that are.
+   */
+  logistics: number;
 
   topDomains: LabelCount[];
   topSeeking: LabelCount[];
 
   /**
-   * The headline. Questions the conference could not answer, most recent
-   * first -- the gap between what was programmed and what was wanted, stated
-   * in the attendee's own words rather than inferred from a survey.
+   * The headline. Subject-matter questions the programme could not answer,
+   * worst match first -- the gap between what was programmed and what was
+   * wanted, in the attendee's own words rather than from a survey weeks later.
    */
   unmet: UnmetQuestion[];
 

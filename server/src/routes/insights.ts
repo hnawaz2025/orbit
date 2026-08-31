@@ -58,6 +58,7 @@ interface Facets {
   domain?: string;
   blocker?: string;
   seeking?: string;
+  intent?: "programme" | "logistics" | "unclear";
 }
 
 insightsRouter.get(
@@ -92,7 +93,11 @@ insightsRouter.get(
     let unanswered = 0;
     const unmet: UnmetQuestion[] = [];
 
-    for (const query of queries) {
+    let logistics = 0;
+
+    for (const [index, query] of queries.entries()) {
+      const intent = facets[index].intent ?? "programme";
+
       // Derived rather than stored. The scores are already on the
       // recommendations, and deriving keeps one definition of "answered"
       // rather than a second copy that can drift from the first.
@@ -107,14 +112,26 @@ insightsRouter.get(
         continue;
       }
 
-      if (unmet.length < UNMET_LIMIT) {
-        unmet.push({
-          text: query.rawText,
-          askedAt: query.askedAt.toISOString(),
-          bestScore: Number(best.toFixed(3)),
-        });
+      // A conference not answering "where is the coffee" is not a programme
+      // gap, and counting it as one buries the gaps that are real.
+      if (intent !== "programme") {
+        logistics++;
+        continue;
       }
+
+      unmet.push({
+        text: query.rawText,
+        askedAt: query.askedAt.toISOString(),
+        bestScore: Number(best.toFixed(3)),
+      });
     }
+
+    // Worst first, not newest first. The previous ordering was a recency
+    // window: a gap from day one fell off the end by day three and was gone,
+    // which is backwards for the thing an organizer carries into next year's
+    // programme meeting.
+    unmet.sort((a, b) => a.bestScore - b.bestScore);
+    unmet.length = Math.min(unmet.length, UNMET_LIMIT);
 
     // What the corpus is actually being asked to deliver.
     const recommended = await prisma.recommendation.groupBy({
@@ -137,6 +154,7 @@ insightsRouter.get(
       answered,
       weak,
       unanswered,
+      logistics,
       topDomains: countLabels(facets.map((f) => f.domain)),
       topSeeking: countLabels(facets.map((f) => f.seeking), 5),
       unmet,

@@ -30,6 +30,19 @@ const facetsSchema = z.object({
    * says "I need to find someone who has done this".
    */
   seeking: z.string().nullish().transform((v) => v ?? undefined),
+
+  /**
+   * Whether this is a question a programme could answer at all.
+   *
+   * The organizer headline is "questions we had no answer for", and without
+   * this it summed genuine gaps with "where is the coffee" -- not a programme
+   * failure, and enough of them drown the ones that are. Three lines on a call
+   * that already happens.
+   */
+  intent: z
+    .enum(["programme", "logistics", "unclear"])
+    .nullish()
+    .transform((v) => v ?? "programme"),
 });
 
 export type QueryFacets = z.infer<typeof facetsSchema>;
@@ -43,10 +56,15 @@ You are interpreting, not answering. Never suggest a session, a person, or a sol
 - "stack" lists technologies they explicitly named. Do not add technologies they did not mention.
 - "blocker" is what is actually in their way, if they said.
 - "seeking" is the kind of help that would land: "an expert to talk to", "a technique", "a vendor", "a job", "orientation".
+- "intent" is one of:
+    "programme"  - a subject a conference could put a session or a speaker against
+    "logistics"  - the venue, times, wifi, food, parking, registration
+    "unclear"    - too vague or too short to tell
+  Judge the question itself, not whether this particular conference covers it.
 
 Omit any field they did not give you enough to fill. A missing facet is fine; an invented one sends them to the wrong room.
 
-Return ONLY a JSON object with those five keys. No prose, no markdown fences.`;
+Return ONLY a JSON object with those six keys. No prose, no markdown fences.`;
 
 /**
  * Text used to embed the query.

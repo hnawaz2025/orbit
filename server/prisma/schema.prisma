@@ -183,6 +183,13 @@ model Query {
 
   /// Exactly what they typed or said.
   rawText String
+
+  /// Which pass they hold, when they said.
+  ///
+  /// Recorded because "what is the PRO tier asking for that OPEN is not" is a
+  /// pricing question an organizer cannot answer any other way, and the value
+  /// was already arriving on the request and being discarded after filtering.
+  pass String?
   /// LLM-extracted facets: {goal, domain, stack, blocker, seeking}. Matching
   /// runs on these plus the embedding, not on raw prose — the same problem
   /// gets described in wildly different vocabulary by different people.

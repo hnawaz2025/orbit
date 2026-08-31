@@ -103,7 +103,15 @@ export function InsightsScreen() {
     return <View style={[styles.flex, styles.centred]}><ActivityIndicator color={colors.primary} /></View>;
   }
 
-  const gap = data.weak + data.unanswered;
+  // The headline counts programme gaps only. Logistics questions are shown
+  // beside it rather than inside it -- a conference that cannot answer "where
+  // is the wifi" has a signage problem, not a programming one.
+  const gap = data.unmet.length;
+
+  // Under this many questions, a bar chart asserts a shape the sample cannot
+  // support. The questions themselves are shown instead: less confident, more
+  // useful, and honest about how much is actually known.
+  const enoughForShape = data.questions >= 8;
 
   return (
     <ScrollView
@@ -127,12 +135,30 @@ export function InsightsScreen() {
         <Stat value={gap} label="UNMET" urgent={gap > 0} />
       </View>
 
+      {data.logistics > 0 ? (
+        <Text style={styles.aside}>
+          {data.logistics} more {data.logistics === 1 ? "question was" : "questions were"} about the
+          venue rather than the programme — signage, not scheduling.
+        </Text>
+      ) : null}
+
+      {!enoughForShape ? (
+        <Text style={styles.aside}>
+          {data.questions} {data.questions === 1 ? "question" : "questions"} so far, from a
+          self-selected group. Read these as anecdotes, not proportions.
+        </Text>
+      ) : null}
+
       {/* The headline. A survey asks months later and gets a sanitised answer;
           this is the question someone typed at the time, with the programme
           having nothing good for it. */}
       {data.unmet.length > 0 ? (
         <View style={styles.section}>
           <Text style={styles.label}>NO GOOD ANSWER IN THE PROGRAMME</Text>
+          <Text style={styles.aside}>
+            Worst match first. These are what next year's programme is missing, in the words
+            people used at the time.
+          </Text>
           {data.unmet.map((q) => (
             <View key={q.askedAt} style={styles.unmetCard}>
               <Text style={styles.unmetText}>“{q.text}”</Text>
@@ -144,7 +170,7 @@ export function InsightsScreen() {
         </View>
       ) : null}
 
-      {data.topDomains.length > 0 ? (
+      {enoughForShape && data.topDomains.length > 0 ? (
         <View style={styles.section}>
           <Text style={styles.label}>WHAT THEY CAME TO SOLVE</Text>
           {data.topDomains.map((d) => (
@@ -153,7 +179,7 @@ export function InsightsScreen() {
         </View>
       ) : null}
 
-      {data.topSeeking.length > 0 ? (
+      {enoughForShape && data.topSeeking.length > 0 ? (
         <View style={styles.section}>
           <Text style={styles.label}>WHAT KIND OF HELP THEY WANTED</Text>
           {data.topSeeking.map((s) => (
@@ -266,5 +292,6 @@ const styles = StyleSheet.create({
   recTimes: { ...type.cardTitle, color: colors.primary, width: 32 },
   recTitle: { ...type.meta, color: colors.textPrimary, flex: 1 },
 
+  aside: { ...type.meta, color: colors.textMuted },
   footnote: { ...type.meta, color: colors.textMuted },
 });
