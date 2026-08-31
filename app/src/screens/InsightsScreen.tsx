@@ -1,12 +1,17 @@
 import { useCallback, useState } from "react";
 import { useFocusEffect } from "@react-navigation/native";
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { EventInsights } from "@orbit/shared";
 import { api } from "../api/client";
+import { getItem, setItem } from "../api/storage";
+import { Button } from "../components/Button";
 import { colors, radius, spacing, type } from "../theme";
 
 const EVENT = "api-world-2026";
+const TOKEN_KEY = "orbit_organizer_token";
 
 /**
  * The organizer's half of the product.
@@ -22,19 +27,74 @@ export function InsightsScreen() {
   const [data, setData] = useState<EventInsights | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  const [entry, setEntry] = useState("");
+  const [checking, setChecking] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (withToken: string) => {
     try {
-      setData(await api.insights(EVENT));
+      setData(await api.insights(EVENT, withToken));
       setError(null);
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't load that.");
+      return false;
     }
   }, []);
 
+  const unlock = useCallback(async () => {
+    setChecking(true);
+    setError(null);
+    const passcode = entry.trim();
+    if (await load(passcode)) {
+      setToken(passcode);
+      void setItem(TOKEN_KEY, passcode).catch(() => {});
+    }
+    setChecking(false);
+  }, [entry, load]);
+
   // Refetched on focus, not once on mount: the point of this screen in a demo
   // is that it changes as people ask things.
-  useFocusEffect(useCallback(() => { void load(); }, [load]));
+  useFocusEffect(
+    useCallback(() => {
+      let live = true;
+      void (async () => {
+        const saved = token ?? (await getItem(TOKEN_KEY));
+        if (!live || !saved) return;
+        setToken(saved);
+        await load(saved);
+      })();
+      return () => { live = false; };
+    }, [token, load])
+  );
+
+  // Not a login -- there are no organizer accounts. A shared passcode is the
+  // right weight for "this is anonymous, but it is still every question real
+  // people asked, and should not be one guessed URL away".
+  if (!token) {
+    return (
+      <View style={[styles.flex, styles.gate]}>
+        <Text style={styles.gateTitle}>Organiser view</Text>
+        <Text style={styles.body}>
+          What attendees asked for, and what the programme had no answer for. Anonymous, and
+          behind a passcode because it is still their questions.
+        </Text>
+        <TextInput
+          style={styles.gateInput}
+          value={entry}
+          onChangeText={setEntry}
+          placeholder="Passcode"
+          placeholderTextColor={colors.textMuted}
+          autoCapitalize="none"
+          autoCorrect={false}
+          secureTextEntry
+          onSubmitEditing={() => void unlock()}
+        />
+        {error ? <Text style={styles.gateError}>{error}</Text> : null}
+        <Button label="Unlock" onPress={() => void unlock()} loading={checking} disabled={!entry.trim()} />
+      </View>
+    );
+  }
 
   if (error) {
     return <View style={[styles.flex, styles.centred]}><Text style={styles.body}>{error}</Text></View>;
@@ -52,7 +112,7 @@ export function InsightsScreen() {
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
-          onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }}
+          onRefresh={async () => { setRefreshing(true); await load(token); setRefreshing(false); }}
           tintColor={colors.primary}
         />
       }
@@ -145,6 +205,19 @@ function Bar({ label, count, max }: { label: string; count: number; max: number 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   centred: { alignItems: "center", justifyContent: "center", padding: spacing.xl },
+  gate: { justifyContent: "center", padding: spacing.xl, gap: spacing.lg },
+  gateTitle: { ...type.display, color: colors.textPrimary },
+  gateInput: {
+    minHeight: 52,
+    backgroundColor: colors.surface,
+    borderRadius: radius.input,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    ...type.body,
+    color: colors.textPrimary,
+  },
+  gateError: { ...type.meta, color: colors.error },
   content: { padding: spacing.lg, gap: spacing.xl },
   lede: { ...type.body, color: colors.textSecondary },
   body: { ...type.body, color: colors.textSecondary },

@@ -61,7 +61,10 @@ export const api = {
       `/events/${eventSlug}/entities/${encodeURIComponent(id)}`
     ),
 
-  insights: (eventSlug: string) => request<EventInsights>(`/events/${eventSlug}/insights`),
+  insights: (eventSlug: string, token: string) =>
+    request<EventInsights>(`/events/${eventSlug}/insights`, {
+      headers: { "x-organizer-token": token },
+    }),
 
   ask: (eventSlug: string, text: string, pass?: PassTier) =>
     request<AskResponse>("/ask", {

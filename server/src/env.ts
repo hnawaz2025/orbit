@@ -36,6 +36,16 @@ const baseSchema = z.object({
    */
   REASONING_MODEL: z.string().default("gpt-5.4-mini"),
 
+  /**
+   * Gate on the organizer view.
+   *
+   * Required rather than optional, and the endpoint refuses without it. The
+   * aggregate is anonymous but it is still every question real attendees
+   * typed, and "we forgot to set the variable" should fail closed rather than
+   * publish the lot.
+   */
+  ORGANIZER_TOKEN: z.string().optional(),
+
   // Optional on purpose. Enrichment makes thin speaker entries matchable, but
   // the corpus is still servable without it -- a speaker's own talk abstract
   // is the richer signal anyway. Absent key means enrichment is skipped, not

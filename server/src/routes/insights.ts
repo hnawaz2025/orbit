@@ -1,8 +1,44 @@
 import { Router } from "express";
 import { countLabels, type EventInsights, type UnmetQuestion } from "@orbit/shared";
 import { prisma } from "../db";
+import { loadEnv } from "../env";
 import { AppError } from "../errors";
 import { asyncHandler } from "../middleware/asyncHandler";
+
+const env = loadEnv();
+
+/**
+ * The organizer view is gated.
+ *
+ * Everything here is anonymous -- no names, no device ids, only counts and the
+ * text people typed. But it is still every question real attendees asked, and
+ * publishing that to anyone who guesses a URL is not a thing to do by
+ * accident. Absent configuration fails closed rather than open: forgetting to
+ * set the token locks the door rather than removing it.
+ */
+function requireOrganizer(header: string | undefined): void {
+  if (!env.ORGANIZER_TOKEN) {
+    throw new AppError("The organiser view is not configured on this server.", {
+      statusCode: 503,
+      code: "ORGANIZER_VIEW_DISABLED",
+    });
+  }
+
+  // Length-independent comparison is overkill for a shared demo passcode, but
+  // an early-exit compare on a secret is a habit worth not forming.
+  const given = header ?? "";
+  const expected = env.ORGANIZER_TOKEN;
+  let mismatch = given.length === expected.length ? 0 : 1;
+  for (let i = 0; i < Math.max(given.length, expected.length); i++) {
+    mismatch |= given.charCodeAt(i % (given.length || 1)) ^ expected.charCodeAt(i % expected.length);
+  }
+  if (mismatch !== 0) {
+    throw new AppError("That passcode is not right.", {
+      statusCode: 401,
+      code: "ORGANIZER_UNAUTHORIZED",
+    });
+  }
+}
 
 export const insightsRouter = Router();
 
@@ -27,6 +63,8 @@ interface Facets {
 insightsRouter.get(
   "/:slug/insights",
   asyncHandler(async (req, res) => {
+    requireOrganizer(req.header("x-organizer-token"));
+
     const event = await prisma.event.findUnique({ where: { slug: req.params.slug } });
     if (!event) {
       throw new AppError(`No event named "${req.params.slug}".`, {
