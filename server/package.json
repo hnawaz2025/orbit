@@ -21,7 +21,7 @@
     "enrich": "tsx scripts/enrich.ts",
     "embed": "tsx scripts/embed.ts",
     "backfill": "tsx scripts/backfill.ts",
-    "seed": "tsx src/ingest/run.ts api-world-2026 && tsx scripts/backfill.ts"
+    "seed": "tsx src/ingest/run.ts api-world-2026 && tsx scripts/backfill.ts && tsx scripts/backfillProfiles.ts --apply"
   },
   "dependencies": {
     "@orbit/shared": "*",
