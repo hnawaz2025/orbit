@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Orbit API</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, sans-serif;
+    max-width: 34rem; margin: 0 auto; padding: 4rem 1.5rem;
+    background: #F6F8FA; color: #10161D;
+  }
+  @media (prefers-color-scheme: dark) { body { background: #0D141B; color: #E4ECF2; } }
+  h1 { font-size: 1.5rem; letter-spacing: -0.02em; margin: 0 0 .25rem; }
+  p { color: #4E5C6A; }
+  @media (prefers-color-scheme: dark) { p { color: #96A7B6; } }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; }
+  ul { padding-left: 1.1rem; }
+  li { margin: .35rem 0; }
+  a { color: #12557F; }
+  @media (prefers-color-scheme: dark) { a { color: #7CB6E0; } }
+</style>
+</head>
+<body>
+  <h1>Orbit API</h1>
+  <p>
+    The backend for Orbit, a conference companion that answers
+    &ldquo;who should I actually meet here?&rdquo; rather than
+    &ldquo;what&rsquo;s on at 2pm?&rdquo;
+  </p>
+  <p>This is the API. There is nothing to see here; the app is elsewhere.</p>
+  <ul>
+    <li><code>GET /health</code> — liveness, including a real database round trip</li>
+    <li><code>GET /events</code> — conferences with a loaded corpus</li>
+    <li><code>POST /ask</code> — a stated problem in, ranked recommendations out</li>
+  </ul>
+  <p><a href="https://github.com/hnawaz2025/orbit">github.com/hnawaz2025/orbit</a></p>
+</body>
+</html>
