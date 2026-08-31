@@ -1,5 +1,9 @@
 generator client {
   provider = "prisma-client-js"
+  // "native" is the machine that ran generate -- a Mac locally, which produces
+  // an engine Vercel's Linux runtime cannot load. Both targets are needed for
+  // the same build to work in either place.
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {

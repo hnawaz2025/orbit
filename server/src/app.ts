@@ -1,0 +1,66 @@
+// The application itself, with no listener.
+//
+// Separated from index.ts so a serverless handler can import it: a function
+// runtime supplies the socket, and calling listen() there would bind a port
+// nothing is listening on.
+//
+// Middleware order is load-bearing. readDevice runs before the limiters so they
+// can key on the device token rather than collapsing every caller into one IP
+// bucket, and errorHandler must stay last -- Express identifies the terminal
+// error handler by its arity and its position.
+import "dotenv/config";
+import cors from "cors";
+import express from "express";
+import morgan from "morgan";
+import { prisma } from "./db";
+import { loadEnv } from "./env";
+import { errorHandler } from "./middleware/errorHandler";
+import { readDevice } from "./middleware/device";
+import { aiRateLimiter, readRateLimiter } from "./middleware/rateLimit";
+import { askRouter } from "./routes/ask";
+import { eventsRouter } from "./routes/events";
+import { speechRouter } from "./routes/speech";
+
+const env = loadEnv();
+
+const app = express();
+
+// Render (and most PaaS) put a proxy in front of the app, so req.ip would
+// otherwise be the proxy's address for every caller -- collapsing everyone into
+// one rate-limit bucket. Trusting exactly one hop rather than `true` is
+// deliberate: blanket trust lets a client forge X-Forwarded-For and pick its
+// own bucket.
+app.set("trust proxy", 1);
+
+app.use(cors());
+app.use(morgan("dev"));
+// Voice recordings arrive as base64 JSON, which inflates size ~33% over the
+// raw file. 4mb rather than 15: serverless platforms cap a request body at
+// 4.5mb, and a limit that only fails in production is worse than one that
+// fails the same way everywhere. 4mb of base64 is roughly a minute of speech,
+// well past what anyone says to a search box.
+app.use(express.json({ limit: "4mb" }));
+app.use(readDevice);
+
+// Unlimited on purpose: an uptime check must never be rate-limited into
+// looking like an outage.
+app.get("/health", async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ ok: true, db: "connected" });
+  } catch (error) {
+    res.status(503).json({ ok: false, db: "unreachable", error: (error as Error).message });
+  }
+});
+
+// Limiters are mounted per-router by how expensive the router is, not
+// globally. /ask spends several model calls per request and /events is a pure
+// read, so throttling them at the same rate would either starve the read or
+// leave the expensive path open.
+app.use("/events", readRateLimiter, eventsRouter);
+app.use("/ask", aiRateLimiter, askRouter);
+app.use("/speech", aiRateLimiter, speechRouter);
+
+app.use(errorHandler);
+
+export { app };
