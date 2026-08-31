@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { errorWithCause } from "../errors";
 
 // Rendering, separated from extraction on purpose.
 //
@@ -118,11 +119,11 @@ export async function renderPageText(
     await browser.close();
   }
 
-  throw new Error(
+  throw errorWithCause(
     `Could not render ${url} after ${ATTEMPTS} attempts: ${
       lastError instanceof Error ? lastError.message.split("\n")[0] : String(lastError)
     }`,
-    { cause: lastError }
+    lastError
   );
 }
 

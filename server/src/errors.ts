@@ -105,3 +105,23 @@ export const GENERIC_ERROR: ClientFacingError = {
   code: "INTERNAL_ERROR",
   message: "Something went wrong on our end. Please try again.",
 };
+
+/**
+ * Attach a cause without relying on the two-argument Error constructor.
+ *
+ * `new Error(message, { cause })` needs the ES2022 lib, and the build machine
+ * resolved a narrower one than this machine does -- so the code compiled here
+ * and failed there, which is the worst place to find out. Assigning the
+ * property is equivalent at runtime on every Node this runs on, and depends on
+ * no lib at all.
+ *
+ * The cause itself matters: by the time this reaches errorHandler the original
+ * provider error -- a 503, a quota failure -- is the only thing that can tell
+ * the user something useful, and flattening it into a string throws away the
+ * status code that classification depends on.
+ */
+export function errorWithCause(message: string, cause: unknown): Error {
+  const error = new Error(message);
+  (error as Error & { cause?: unknown }).cause = cause;
+  return error;
+}

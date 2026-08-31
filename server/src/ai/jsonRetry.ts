@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import { errorWithCause } from "../errors";
 
 // Shared across every LLM call: no provider guarantees well-formed JSON from a
 // prompt alone. This extracts the first JSON object from raw text, validates it
@@ -92,14 +93,10 @@ export async function callForJson<T>(
     }
   }
 
-  // `cause` matters: by the time this reaches errorHandler the original
-  // provider error (a 503, a quota failure) is the only thing that can tell the
-  // user something useful, and flattening it into a string here would throw
-  // away the status code that classification depends on.
-  throw new Error(
+  throw errorWithCause(
     `AI response did not match the expected shape after retry: ${
       lastError instanceof Error ? lastError.message : String(lastError)
     }`,
-    { cause: lastError }
+    lastError
   );
 }
