@@ -24,3 +24,13 @@ export function PlanIcon({ color, size = 24 }: { color: string; size?: number })
     </Svg>
   );
 }
+
+/** The LinkedIn mark, drawn rather than imported. */
+export function LinkedInIcon({ color, size = 22 }: { color: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <Path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3 9h4v12H3z" />
+      <Path d="M10 9h3.8v1.7h.05c.53-.95 1.83-1.95 3.76-1.95 4.02 0 4.76 2.5 4.76 5.75V21h-4v-5.6c0-1.34-.03-3.06-1.9-3.06-1.9 0-2.19 1.45-2.19 2.96V21h-4z" />
+    </Svg>
+  );
+}

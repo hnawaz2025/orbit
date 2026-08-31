@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Button } from "../components/Button";
 import { KindBadge } from "../components/KindBadge";
+import { LinkedInIcon } from "../components/TabIcons";
 import { usePlan } from "../store/usePlan";
 import { colors, radius, spacing, type } from "../theme";
 import type { AskStackParamList } from "../navigation/types";
@@ -98,11 +99,27 @@ export function DetailScreen({ navigation, route }: Props) {
       <Text style={styles.title}>{item.title}</Text>
       {item.subtitle ? <Text style={styles.subtitle}>{item.subtitle}</Text> : null}
 
-      <Button
-        label={saved ? "Saved — remove" : "Save"}
-        variant={saved ? "quiet" : "primary"}
-        onPress={() => (saved ? remove(item.id) : add(item, timeZone))}
-      />
+      {/* The two things you can do, together and above the fold. Connecting
+          was previously below the biography, which put the point of a person's
+          page behind a scroll. */}
+      <View style={styles.actions}>
+        <Button
+          label={saved ? "Saved — remove" : "Save"}
+          variant={saved ? "quiet" : "primary"}
+          onPress={() => (saved ? remove(item.id) : add(item, timeZone))}
+          style={{ flex: 1 }}
+        />
+        {item.profileUrl ? (
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={`Connect with ${item.title} on LinkedIn`}
+            onPress={() => Linking.openURL(item.profileUrl!).catch(() => {})}
+            style={({ pressed }) => [styles.connect, pressed && { opacity: 0.85 }]}
+          >
+            <LinkedInIcon color={colors.white} />
+          </Pressable>
+        ) : null}
+      </View>
 
       {item.reason ? (
         <View style={styles.reasonBox}>
@@ -132,20 +149,6 @@ export function DetailScreen({ navigation, route }: Props) {
           question, so the field is empty and the block is simply absent rather
           than showing a hollow one. */}
       {item.description ? <Text style={styles.body}>{item.description}</Text> : null}
-
-      {/* The conversation this product exists to cause usually ends with
-          "let's connect". Having the link already there is the difference
-          between an intention and a connection. */}
-      {item.profileUrl ? (
-        <Pressable
-          accessibilityRole="link"
-          accessibilityLabel={`Open ${item.title}'s LinkedIn profile`}
-          onPress={() => Linking.openURL(item.profileUrl!).catch(() => {})}
-          style={({ pressed }) => [styles.connect, pressed && { opacity: 0.85 }]}
-        >
-          <Text style={styles.connectText}>Connect on LinkedIn</Text>
-        </Pressable>
-      ) : null}
 
       {/* The actionable other end. A matched talk surfaces the person you can
           actually walk up to, which is the half you cannot get from a schedule. */}
@@ -196,16 +199,18 @@ const styles = StyleSheet.create({
   factLabel: { ...type.label, color: colors.textMuted },
   factValue: { ...type.cardTitle, color: colors.textPrimary },
   body: { ...type.body, color: colors.textSecondary },
+  actions: { flexDirection: "row", gap: spacing.md },
   connect: {
-    minHeight: 52,
+    // Square, matching the Button's 52pt height so the row reads as one
+    // control rather than two mismatched ones. LinkedIn's mark is recognised
+    // without a label; a word beside it would only cost the width.
+    width: 52,
+    height: 52,
     borderRadius: radius.input,
-    borderWidth: 1,
-    borderColor: colors.person,
-    backgroundColor: colors.personWash,
+    backgroundColor: "#0A66C2",
     alignItems: "center",
     justifyContent: "center",
   },
-  connectText: { ...type.cardTitle, color: colors.person },
   linked: { gap: spacing.sm, marginTop: spacing.sm },
   linkedLabel: { ...type.label, color: colors.textMuted },
   linkRow: {
