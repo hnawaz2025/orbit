@@ -122,9 +122,17 @@ askRouter.post(
     const ranked = reserveForPreferredKinds(scored, preferred, SHOWN).slice(0, SHOWN);
 
     const corpusMiss = ranked.length === 0;
-    // Judged on the best result, not the average: one genuinely good answer
-    // makes a response useful even when the rest are adjacent.
-    const weakMatch = !corpusMiss && (ranked[0]?.score ?? 0) < STRONG_MATCH;
+
+    // Judged on the best score in the set, not on whatever ended up at rank 1.
+    // Reservation deliberately promotes a person above better-scoring sessions
+    // when someone asked to meet people, so reading ranked[0] made every such
+    // question look like a weak match and painted the caveat over five good
+    // answers.
+    //
+    // Still the best rather than the average: one genuinely good answer makes
+    // a response useful even when the rest are adjacent.
+    const bestScore = scored[0]?.score ?? 0;
+    const weakMatch = !corpusMiss && bestScore < STRONG_MATCH;
 
     // Descriptions and links are fetched only for what survived ranking --
     // pulling them for the whole corpus would be most of a megabyte to throw

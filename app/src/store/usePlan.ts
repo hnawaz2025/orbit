@@ -67,6 +67,8 @@ interface PlanState {
   decided: string[];
   declined: string[];
   choose: (id: string, over: string[]) => void;
+  /** Settle a clash without picking: hedging is legal and must stay legal. */
+  keepBoth: (ids: string[]) => void;
   decline: (id: string) => void;
 }
 
@@ -130,8 +132,13 @@ export const usePlan = create<PlanState>((set, get) => ({
 
   remove: (id) => {
     const next = get().saved.filter((i) => i.id !== id);
-    set({ saved: next, items: next.map(toPlanItem) });
-    void persist(next, get().timeZone, get().decided, get().declined);
+    // Forget what was decided about it too. Otherwise skipping, removing and
+    // saving again returns an item that Now/Next will never show, with nothing
+    // in the interface to explain why or undo it.
+    const decided = get().decided.filter((d) => d !== id);
+    const declined = get().declined.filter((d) => d !== id);
+    set({ saved: next, items: next.map(toPlanItem), decided, declined });
+    void persist(next, get().timeZone, decided, declined);
   },
 
   has: (id) => get().saved.some((i) => i.id === id),
@@ -145,6 +152,16 @@ export const usePlan = create<PlanState>((set, get) => ({
     const declined = [...new Set([...get().declined, ...over.filter((o) => o !== id)])];
     set({ decided, declined });
     void persist(get().saved, get().timeZone, decided, declined);
+  },
+
+  keepBoth: (ids) => {
+    // Decided, so the queue stops asking -- but nothing declined, because
+    // "keep both" means keep both. Routing this through choose() marked
+    // everything except the first option as declined, which is the opposite
+    // of what the button says.
+    const decided = [...new Set([...get().decided, ...ids])];
+    set({ decided });
+    void persist(get().saved, get().timeZone, decided, get().declined);
   },
 
   decline: (id) => {

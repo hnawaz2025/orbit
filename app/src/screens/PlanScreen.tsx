@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -152,6 +152,7 @@ export function PlanScreen({ navigation }: Props) {
   const decided = usePlan((s) => s.decided);
   const declined = usePlan((s) => s.declined);
   const choose = usePlan((s) => s.choose);
+  const keepBoth = usePlan((s) => s.keepBoth);
   const decline = usePlan((s) => s.decline);
 
   const days = useMemo(() => planDays(items, timeZone), [items, timeZone]);
@@ -159,13 +160,23 @@ export function PlanScreen({ navigation }: Props) {
   // Zones A and B, in priority order: what to do now, then what is still
   // undecided. Both recomputed from the shortlist rather than stored, so a
   // save or a decision anywhere updates them.
-  const now = new Date();
+
+  // A ticking clock, because every label on this screen is relative to it.
+  // Without this "IN 12 MIN" never counts down, "UNDER WAY" never appears and
+  // "Leave now" never fires -- on the one screen whose entire job is "now".
+  // Thirty seconds is enough for minute-granularity copy and cheap enough to
+  // leave running.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const tick = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(tick);
+  }, []);
   const declinedSet = useMemo(() => new Set(declined), [declined]);
   const decidedSet = useMemo(() => new Set(decided), [decided]);
 
   const upNext = useMemo(
     () => selectNowNext(items, now, declinedSet),
-    [items, declinedSet]
+    [items, declinedSet, now]
   );
   const beforeNext = useMemo(() => {
     if (!upNext?.startsAt) return null;
@@ -177,7 +188,7 @@ export function PlanScreen({ navigation }: Props) {
 
   const decisions = useMemo(
     () => decisionsToMake(items, decidedSet, now),
-    [items, decidedSet]
+    [items, decidedSet, now]
   );
 
   // The reason is the input to a choice, and the shortlist keeps it.
@@ -264,7 +275,7 @@ export function PlanScreen({ navigation }: Props) {
                 reasons={reasons}
                 timeZone={timeZone}
                 onKeep={(id) => choose(id, decision.options.map((o) => o.id))}
-                onKeepBoth={() => choose(decision.options[0].id, decision.options.map((o) => o.id))}
+                onKeepBoth={() => keepBoth(decision.options.map((o) => o.id))}
               />
             ))}
           </View>
