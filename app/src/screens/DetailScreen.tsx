@@ -36,6 +36,14 @@ export function DetailScreen({ navigation, route }: Props) {
   const [fetched, setFetched] = useState<(RecommendedEntity & { timezone?: string }) | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
 
+  // Every hook is called before the early returns below. React identifies
+  // hooks by call order, so a hook that runs only once the entity has loaded
+  // changes that order between renders and crashes the screen -- which is
+  // exactly what happened when Detail gained a loading state.
+  const add = usePlan((s) => s.add);
+  const remove = usePlan((s) => s.remove);
+  const savedIds = usePlan((s) => s.saved);
+
   useEffect(() => {
     if (passed || !entityId) return;
     let live = true;
@@ -67,9 +75,7 @@ export function DetailScreen({ navigation, route }: Props) {
     );
   }
 
-  const saved = usePlan.getState().has(item.id);
-  const add = usePlan((s) => s.add);
-  const remove = usePlan((s) => s.remove);
+  const saved = savedIds.some((entity) => entity.id === item.id);
 
   // Venue time, like everywhere else. A schedule read in the phone's zone is
   // wrong for anyone who has not landed yet.
