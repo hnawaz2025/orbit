@@ -247,6 +247,7 @@ export function PlanScreen({ navigation }: Props) {
               )
             }
             onSkip={() => decline(upNext.id)}
+            committed={decidedSet.has(upNext.id)}
           />
         ) : null}
 

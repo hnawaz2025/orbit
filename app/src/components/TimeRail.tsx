@@ -68,9 +68,25 @@ export function TimeRail({
       ) : null}
       {/* The clock survives every state. Only the colour and one line of copy
           change, so the card does not reflow as a session approaches. */}
-      <Text style={[styles.start, { color: ink }]}>{state.start}</Text>
-      {state.end ? <Text style={[styles.end, { color: ink }]}>{state.end}</Text> : null}
-      <Text style={styles.duration}>
+      {/* One line, always. A clock that wraps its last digit onto a second
+          line is unreadable at a glance, which is the only way this is ever
+          read. adjustsFontSizeToFit is the floor rather than the plan -- the
+          box is sized for 22pt "15:00" and only shrinks for something
+          unexpected. */}
+      <Text
+        style={[styles.start, { color: ink }]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
+      >
+        {state.start}
+      </Text>
+      {state.end ? (
+        <Text style={[styles.end, { color: ink }]} numberOfLines={1} adjustsFontSizeToFit>
+          {state.end}
+        </Text>
+      ) : null}
+      <Text style={styles.duration} numberOfLines={1}>
         {state.kind === "underway" ? state.remaining : state.duration}
       </Text>
     </View>
@@ -79,14 +95,17 @@ export function TimeRail({
 
 const styles = StyleSheet.create({
   rail: {
-    width: 76,
+    // 84 rather than 76: "15:00" set at 22pt in a bold grotesque needs about
+    // 58pt, and 76 minus padding left too little margin once the font
+    // actually loaded.
+    width: 84,
     minHeight: 88,
     borderRadius: 8,
     backgroundColor: colors.primaryWash,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 10,
-    paddingHorizontal: 6,
+    paddingHorizontal: 4,
     gap: 1,
   },
   chip: { ...type.label, textAlign: "center" },

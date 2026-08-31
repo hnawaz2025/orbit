@@ -22,6 +22,7 @@ export function NowNext({
   onOpen,
   onGoing,
   onSkip,
+  committed,
 }: {
   item: PlanItem;
   previous: PlanItem | null;
@@ -29,6 +30,8 @@ export function NowNext({
   onOpen: () => void;
   onGoing: () => void;
   onSkip: () => void;
+  /** They have said they are going to this one. */
+  committed?: boolean;
 }) {
   const state = railState(item.startsAt, item.endsAt, item.kind, new Date(), timeZone);
   const leave = leaveBy(item, previous);
@@ -54,7 +57,10 @@ export function NowNext({
         <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
 
         {item.locationName ? (
-          <Text style={styles.place} numberOfLines={1}>{item.locationName}</Text>
+          // Room names run to "API World -- Workshop Stage A (PRO)". Two lines
+          // rather than one: truncating "Workshop Stage A" to "Workshop Sta…"
+          // loses the only part an attendee navigates by.
+          <Text style={styles.place} numberOfLines={2}>{item.locationName}</Text>
         ) : null}
       </Pressable>
 
@@ -68,24 +74,41 @@ export function NowNext({
         </View>
       ) : null}
 
-      {/* Bottom third of the card, for a thumb. Neither of these is a
-          commitment: going settles the slot, skipping refills the card. */}
-      <View style={styles.actions}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={onGoing}
-          style={({ pressed }) => [styles.action, styles.going, pressed && { opacity: 0.85 }]}
-        >
-          <Text style={styles.goingText}>I'm going</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={onSkip}
-          style={({ pressed }) => [styles.action, styles.skip, pressed && { opacity: 0.85 }]}
-        >
-          <Text style={styles.skipText}>Not this</Text>
-        </Pressable>
-      </View>
+      {/* Bottom third of the card, for a thumb.
+          Saying you are going does not move the card -- this is still where
+          you are going next -- so the card has to show that it heard you.
+          Without this the button was wired, worked, and looked broken. */}
+      {committed ? (
+        <View style={styles.actions}>
+          <View style={[styles.action, styles.confirmed]}>
+            <Text style={styles.confirmedText}>You're going</Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onSkip}
+            style={({ pressed }) => [styles.action, styles.skip, pressed && { opacity: 0.85 }]}
+          >
+            <Text style={styles.skipText}>Change</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={styles.actions}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onGoing}
+            style={({ pressed }) => [styles.action, styles.going, pressed && { opacity: 0.85 }]}
+          >
+            <Text style={styles.goingText}>I'm going</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onSkip}
+            style={({ pressed }) => [styles.action, styles.skip, pressed && { opacity: 0.85 }]}
+          >
+            <Text style={styles.skipText}>Not this</Text>
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
@@ -122,6 +145,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   going: { backgroundColor: colors.primary },
+  confirmed: { backgroundColor: colors.personWash, borderWidth: 1, borderColor: colors.person },
+  confirmedText: { ...type.cardTitle, color: colors.person },
   goingText: { ...type.cardTitle, color: colors.white },
   skip: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   skipText: { ...type.cardTitle, color: colors.textSecondary },
