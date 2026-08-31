@@ -2,7 +2,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StyleSheet, Text, View } from "react-native";
 import { findConflicts, sortPlan } from "@orbit/shared";
-import { AskIcon, InsightsIcon, PlanIcon } from "../components/TabIcons";
+import { AskIcon, PlanIcon } from "../components/TabIcons";
 import { AskScreen } from "../screens/AskScreen";
 import { DetailScreen } from "../screens/DetailScreen";
 import { InsightsScreen } from "../screens/InsightsScreen";
@@ -10,11 +10,17 @@ import { PlanScreen } from "../screens/PlanScreen";
 import { ResultsScreen } from "../screens/ResultsScreen";
 import { usePlan } from "../store/usePlan";
 import { colors, type } from "../theme";
-import type { AskStackParamList, PlanStackParamList, RootTabParamList } from "./types";
+import type {
+  AskStackParamList,
+  PlanStackParamList,
+  RootStackParamList,
+  RootTabParamList,
+} from "./types";
 
 const AskStack = createNativeStackNavigator<AskStackParamList>();
 const PlanStack = createNativeStackNavigator<PlanStackParamList>();
 const Tabs = createBottomTabNavigator<RootTabParamList>();
+const Root = createNativeStackNavigator<RootStackParamList>();
 
 const screenOptions = {
   headerStyle: { backgroundColor: colors.background },
@@ -69,7 +75,7 @@ function PlanBadge() {
   );
 }
 
-export function RootNavigator() {
+function TabNavigator() {
   return (
     <Tabs.Navigator
       screenOptions={{
@@ -103,22 +109,31 @@ export function RootNavigator() {
           ),
         }}
       />
-      {/* The organizer's view. A third tab rather than a separate app because
-          the two halves are the same product seen from opposite ends, and in a
-          demo the flip between them is the point. */}
-      <Tabs.Screen
-        name="InsightsTab"
+    </Tabs.Navigator>
+  );
+}
+
+/**
+ * The organizer's view is a modal over the whole app rather than a tab in it.
+ *
+ * Presented rather than pushed because it is a different job, not a deeper
+ * level of the current one: it opens over the attendee's day and closes back
+ * onto exactly where they were.
+ */
+export function RootNavigator() {
+  return (
+    <Root.Navigator>
+      <Root.Screen name="Tabs" component={TabNavigator} options={{ headerShown: false }} />
+      <Root.Screen
+        name="Insights"
         component={InsightsScreen}
         options={{
+          ...screenOptions,
+          presentation: "modal",
           title: "Organisers",
-          headerShown: true,
-          headerStyle: { backgroundColor: colors.background },
-          headerShadowVisible: false,
-          headerTitleStyle: { ...type.cardTitle, color: colors.textPrimary },
-          tabBarIcon: ({ color }) => <InsightsIcon color={color} />,
         }}
       />
-    </Tabs.Navigator>
+    </Root.Navigator>
   );
 }
 

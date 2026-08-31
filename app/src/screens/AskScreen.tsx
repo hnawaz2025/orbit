@@ -14,6 +14,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { api } from "../api/client";
 import { Button } from "../components/Button";
 import { MicButton } from "../components/MicButton";
+import { OrganizerButton } from "../components/OrganizerButton";
 import { PassPicker } from "../components/PassPicker";
 import { useVoiceRecording } from "../hooks/useVoiceRecording";
 import { usePlan } from "../store/usePlan";
@@ -83,7 +84,14 @@ export function AskScreen({ navigation, route }: Props) {
         contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.xxl }]}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.kicker}>API WORLD 2026</Text>
+        {/* The event name and, at the far end of the same line, the way in to
+            the organizer's view. It sits at the top of the first screen
+            because that is where an admin mark is looked for, and nowhere
+            else in the app has a header to hang it on. */}
+        <View style={styles.topRow}>
+          <Text style={styles.kicker}>API WORLD 2026</Text>
+          <OrganizerButton />
+        </View>
         <Text style={styles.heading}>What are you stuck on?</Text>
         <Text style={styles.sub}>
           Describe the actual problem, not a topic. Orbit finds the sessions and the people worth
@@ -134,6 +142,16 @@ export function AskScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.xl, gap: spacing.lg, paddingBottom: spacing.xxxl },
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    // The button is taller than the kicker, so the row is offset back by the
+    // padding inside it -- otherwise the heading below sits lower here than
+    // on every other screen.
+    marginRight: -spacing.sm,
+    marginBottom: -spacing.sm,
+  },
   kicker: { ...type.label, color: colors.primary },
   heading: { ...type.display, color: colors.textPrimary },
   sub: { ...type.body, color: colors.textSecondary },

@@ -20,8 +20,17 @@ export type PlanStackParamList = {
 export type RootTabParamList = {
   AskTab: undefined;
   PlanTab: undefined;
-  InsightsTab: undefined;
 };
 
-/** Convenience for screens registered in both stacks. */
-export type RootStackParamList = AskStackParamList;
+/**
+ * The organizer's view sits above the tabs, not inside them.
+ *
+ * It is one of three people at the conference, and a tab spends a permanent
+ * quarter of every attendee's navigation on a door they cannot open. As a
+ * modal reached from a mark in the corner it costs nobody anything and is
+ * still one tap away when it is time to show it.
+ */
+export type RootStackParamList = {
+  Tabs: undefined;
+  Insights: undefined;
+};
