@@ -1,0 +1,18 @@
+{
+  // Typechecking includes the tests; the build does not.
+  //
+  // tsconfig.json excludes *.test.ts so they never reach dist -- shipping test
+  // fixtures to a server is nobody's intent. But excluding them from the build
+  // also excluded them from `tsc --noEmit`, so type errors in tests were
+  // invisible: the Candidate type gained a required field, the test helper did
+  // not, and it compiled and ran anyway because nothing happened to read it.
+  //
+  // Two configs rather than one, so each says what it means.
+  "extends": "./tsconfig.json",
+  // rootDir is irrelevant when nothing is emitted, and widening it is what
+  // lets the operational scripts be checked at all -- they were outside src, so
+  // they were never typechecked either.
+  "compilerOptions": { "noEmit": true, "rootDir": "." },
+  "include": ["src", "scripts"],
+  "exclude": []
+}

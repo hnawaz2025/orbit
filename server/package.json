@@ -11,17 +11,17 @@
     "ingest": "tsx src/ingest/run.ts",
     "postinstall": "prisma generate",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "npm run build --workspace @orbit/shared && tsc --noEmit -p tsconfig.check.json",
     "build": "npm run build --workspace @orbit/shared && prisma generate && tsc -p tsconfig.json",
-    "start": "prisma db push --skip-generate && node dist/index.js",
+    "start": "node dist/index.js",
     "prisma:generate": "prisma generate",
-    "prisma:push": "prisma db push",
     "inspect": "tsx scripts/inspect.ts",
     "verify:reconcile": "tsx scripts/verifyReconcile.ts",
     "enrich": "tsx scripts/enrich.ts",
     "embed": "tsx scripts/embed.ts",
     "backfill": "tsx scripts/backfill.ts",
-    "seed": "tsx src/ingest/run.ts api-world-2026 && tsx scripts/backfill.ts && tsx scripts/backfillProfiles.ts --apply"
+    "seed": "tsx src/ingest/run.ts api-world-2026 && tsx scripts/backfill.ts && tsx scripts/backfillProfiles.ts --apply",
+    "db:push": "prisma db push"
   },
   "dependencies": {
     "@orbit/shared": "*",

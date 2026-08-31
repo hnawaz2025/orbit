@@ -1,0 +1,50 @@
+name: CI
+
+# Everything that can be checked without a database or an API key.
+#
+# The tests are deliberately all pure: matching, ranking, plan arithmetic,
+# schema coercion, timezone conversion. Nothing here talks to Postgres or spends
+# a model call, so CI needs no secrets and cannot be flaky for reasons that have
+# nothing to do with the change.
+#
+# What this does not cover is the seam between that logic and the screen, which
+# is where every bug found by hand has actually lived. That gap is real and
+# named rather than papered over.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      # npm ci, not install: exactly what the lockfile pins, so a green run
+      # cannot be green against different dependency versions than a deploy.
+      - run: npm ci
+
+      # @orbit/shared resolves to dist, so nothing else compiles until it is
+      # built. Its own build is the first real check.
+      - run: npm run build --workspace @orbit/shared
+
+      - name: Typecheck server (including tests)
+        run: npm run typecheck --workspace server
+
+      - name: Typecheck app
+        run: npm run typecheck --workspace app
+
+      - name: Test
+        run: npm run test --workspace server
+
+      # The server build also runs prisma generate, which is where a schema
+      # that no longer matches the client would surface.
+      - name: Build server
+        run: npm run build --workspace server

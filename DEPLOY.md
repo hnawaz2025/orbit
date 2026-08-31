@@ -43,9 +43,12 @@ It will need these secrets:
 | `OPENAI_API_KEY` | facets, reasons, embeddings, Whisper | **no** |
 | `FEATHERLESS_API_KEY` | batch extraction of the sponsors page | yes |
 | `SERPAPI_API_KEY` | speaker enrichment | yes |
+| `ORGANIZER_TOKEN` | the organiser view | **no** — absent fails closed |
 
-A serverless function never runs a start command, so **nothing creates the
-schema for you**. Push it once from your machine, pointed at Neon:
+**Nothing creates the schema for you**, on any host. `start` used to run
+`prisma db push` on boot, which rewrites a production schema from whatever the
+deployed code happens to contain — that is a migration, and a migration should
+be a decision. Push it once from your machine, pointed at Neon:
 
 ```bash
 cd server

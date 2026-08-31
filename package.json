@@ -9,10 +9,13 @@
   "scripts": {
     "dev:server": "npm run dev --workspace server",
     "dev:app": "npm run start --workspace app",
-    "ingest": "npm run ingest --workspace server",
+    "build:shared": "npm run build --workspace @orbit/shared",
+    "typecheck": "npm run typecheck --workspace server && npm run typecheck --workspace app",
     "test": "npm run test --workspace server",
-    "typecheck": "npm run build --workspace @orbit/shared && npm run typecheck --workspace server",
-    "build:shared": "npm run build --workspace @orbit/shared"
+    "check": "npm run typecheck && npm run test",
+    "ingest": "npm run ingest --workspace server",
+    "seed": "npm run seed --workspace server",
+    "inspect": "npm run inspect --workspace server"
   },
   "engines": {
     "node": "22.x"
