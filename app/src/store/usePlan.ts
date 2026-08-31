@@ -55,11 +55,29 @@ interface PlanState {
   has: (id: string) => boolean;
   /** The full recommendation behind a plan item, for opening its detail. */
   find: (id: string) => RecommendedEntity | undefined;
+
+  /**
+   * Choices already made today.
+   *
+   * Kept apart from the shortlist because deciding is not the same as saving.
+   * "I'm going" settles a clash without deleting the alternatives -- plans
+   * change, and a shortlist that quietly discards the thing you nearly chose
+   * is worse than one that remembers it.
+   */
+  decided: string[];
+  declined: string[];
+  choose: (id: string, over: string[]) => void;
+  decline: (id: string) => void;
 }
 
-async function persist(saved: RecommendedEntity[], timeZone?: string) {
+async function persist(
+  saved: RecommendedEntity[],
+  timeZone?: string,
+  decided: string[] = [],
+  declined: string[] = []
+) {
   try {
-    await setItem(STORAGE_KEY, JSON.stringify({ saved, timeZone }));
+    await setItem(STORAGE_KEY, JSON.stringify({ saved, timeZone, decided, declined }));
   } catch {
     // A failed write costs this change on next launch, which is not worth
     // interrupting someone mid-conference to report.
@@ -69,6 +87,8 @@ async function persist(saved: RecommendedEntity[], timeZone?: string) {
 export const usePlan = create<PlanState>((set, get) => ({
   saved: [],
   items: [],
+  decided: [],
+  declined: [],
   hydrated: false,
 
   hydrate: async () => {
@@ -76,10 +96,22 @@ export const usePlan = create<PlanState>((set, get) => ({
     try {
       const raw = await getItem(STORAGE_KEY);
       const parsed = raw
-        ? (JSON.parse(raw) as { saved?: RecommendedEntity[]; timeZone?: string })
+        ? (JSON.parse(raw) as {
+            saved?: RecommendedEntity[];
+            decided?: string[];
+            declined?: string[];
+            timeZone?: string;
+          })
         : null;
       const saved = Array.isArray(parsed?.saved) ? parsed!.saved : [];
-      set({ saved, items: saved.map(toPlanItem), timeZone: parsed?.timeZone, hydrated: true });
+      set({
+        saved,
+        items: saved.map(toPlanItem),
+        decided: parsed?.decided ?? [],
+        declined: parsed?.declined ?? [],
+        timeZone: parsed?.timeZone,
+        hydrated: true,
+      });
     } catch {
       // Corrupt or unreadable storage starts an empty plan rather than
       // preventing the app from opening.
@@ -93,16 +125,31 @@ export const usePlan = create<PlanState>((set, get) => ({
     const next = [...saved, entity];
     const zone = timeZone ?? get().timeZone;
     set({ saved: next, items: next.map(toPlanItem), timeZone: zone });
-    void persist(next, zone);
+    void persist(next, zone, get().decided, get().declined);
   },
 
   remove: (id) => {
     const next = get().saved.filter((i) => i.id !== id);
     set({ saved: next, items: next.map(toPlanItem) });
-    void persist(next, get().timeZone);
+    void persist(next, get().timeZone, get().decided, get().declined);
   },
 
   has: (id) => get().saved.some((i) => i.id === id),
 
   find: (id) => get().saved.find((i) => i.id === id),
+
+  choose: (id, over) => {
+    // The chosen item and everything it was competing with are all marked
+    // decided, so the queue stops asking. Nothing is deleted.
+    const decided = [...new Set([...get().decided, id, ...over])];
+    const declined = [...new Set([...get().declined, ...over.filter((o) => o !== id)])];
+    set({ decided, declined });
+    void persist(get().saved, get().timeZone, decided, declined);
+  },
+
+  decline: (id) => {
+    const declined = [...new Set([...get().declined, id])];
+    set({ declined });
+    void persist(get().saved, get().timeZone, get().decided, declined);
+  },
 }));

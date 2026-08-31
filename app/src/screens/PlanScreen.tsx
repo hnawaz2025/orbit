@@ -2,8 +2,18 @@ import { useMemo, useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { buildTimeline, planDays, type PlanItem, type TimelineRow } from "@orbit/shared";
+import {
+  buildTimeline,
+  decisionsToMake,
+  planDays,
+  selectNowNext,
+  sortPlan,
+  type PlanItem,
+  type TimelineRow,
+} from "@orbit/shared";
+import { DecisionCard } from "../components/DecisionCard";
 import { KindBadge } from "../components/KindBadge";
+import { NowNext } from "../components/NowNext";
 import { usePlan } from "../store/usePlan";
 import type { PlanStackParamList } from "../navigation/types";
 import { colors, radius, spacing, type } from "../theme";
@@ -138,7 +148,45 @@ export function PlanScreen({ navigation }: Props) {
     if (entity) navigation.navigate("Detail", { item: entity, timeZone });
   };
 
+  const saved = usePlan((s) => s.saved);
+  const decided = usePlan((s) => s.decided);
+  const declined = usePlan((s) => s.declined);
+  const choose = usePlan((s) => s.choose);
+  const decline = usePlan((s) => s.decline);
+
   const days = useMemo(() => planDays(items, timeZone), [items, timeZone]);
+
+  // Zones A and B, in priority order: what to do now, then what is still
+  // undecided. Both recomputed from the shortlist rather than stored, so a
+  // save or a decision anywhere updates them.
+  const now = new Date();
+  const declinedSet = useMemo(() => new Set(declined), [declined]);
+  const decidedSet = useMemo(() => new Set(decided), [decided]);
+
+  const upNext = useMemo(
+    () => selectNowNext(items, now, declinedSet),
+    [items, declinedSet]
+  );
+  const beforeNext = useMemo(() => {
+    if (!upNext?.startsAt) return null;
+    const earlier = sortPlan(items).filter(
+      (i) => i.startsAt && Date.parse(i.startsAt) < Date.parse(upNext.startsAt!)
+    );
+    return earlier[earlier.length - 1] ?? null;
+  }, [items, upNext]);
+
+  const decisions = useMemo(
+    () => decisionsToMake(items, decidedSet, now),
+    [items, decidedSet]
+  );
+
+  // The reason is the input to a choice, and the shortlist keeps it.
+  const reasons = useMemo(
+    () => new Map(saved.map((entity) => [entity.id, entity.reason])),
+    [saved]
+  );
+
+  const people = useMemo(() => items.filter((i) => i.kind === "PERSON"), [items]);
   const [dayIndex, setDayIndex] = useState(0);
   const activeDay = days[Math.min(dayIndex, Math.max(days.length - 1, 0))];
 
@@ -152,8 +200,9 @@ export function PlanScreen({ navigation }: Props) {
       <View style={[styles.flex, styles.empty]}>
         <Text style={styles.emptyTitle}>Nothing saved yet.</Text>
         <Text style={styles.emptyBody}>
-          Ask what you're stuck on, then save what's worth your time. Anything that collides will
-          show up here as two sessions in the same slot, not as a warning you have to decode.
+          Ask what you're stuck on and save anything worth your time — several things in the same
+          slot is fine. This is a shortlist, not a schedule, and its job is to tell you where to go
+          next.
         </Text>
       </View>
     );
@@ -182,16 +231,88 @@ export function PlanScreen({ navigation }: Props) {
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
       >
+        {/* Zone A. Every zone disappears entirely when empty -- a placeholder
+            for "nothing to decide" is worse than the space it occupies. */}
+        {upNext ? (
+          <NowNext
+            item={upNext}
+            previous={beforeNext}
+            timeZone={timeZone}
+            onOpen={() => open(upNext.id)}
+            onGoing={() =>
+              choose(
+                upNext.id,
+                decisions.find((d) => d.options.some((o) => o.id === upNext.id))
+                  ?.options.map((o) => o.id) ?? [upNext.id]
+              )
+            }
+            onSkip={() => decline(upNext.id)}
+          />
+        ) : null}
+
+        {/* Zone B. */}
+        {decisions.length > 0 ? (
+          <View style={styles.zone}>
+            <Text style={styles.zoneLabel}>
+              {decisions.length === 1 ? "1 CHOICE TO MAKE" : `${decisions.length} CHOICES TO MAKE`}
+            </Text>
+            {decisions.map((decision) => (
+              <DecisionCard
+                key={decision.startsAt}
+                decision={decision}
+                reasons={reasons}
+                timeZone={timeZone}
+                onKeep={(id) => choose(id, decision.options.map((o) => o.id))}
+                onKeepBoth={() => choose(decision.options[0].id, decision.options.map((o) => o.id))}
+              />
+            ))}
+          </View>
+        ) : null}
+
+        {/* Zone C. People are the differentiator, so they sit above the day
+            rather than on a shelf beneath it. */}
+        {people.length > 0 ? (
+          <View style={styles.zone}>
+            <Text style={styles.zoneLabel}>PEOPLE TO FIND · {people.length}</Text>
+            {people.map((person) => (
+              <Pressable
+                key={person.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${person.title}`}
+                onPress={() => open(person.id)}
+                style={({ pressed }) => [styles.personRow, pressed && { opacity: 0.9 }]}
+              >
+                <View style={styles.monogram}>
+                  <Text style={styles.monogramText}>
+                    {person.title.split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.personName} numberOfLines={1}>{person.title}</Text>
+                  <Text style={styles.personWhere} numberOfLines={1}>
+                    {person.startsAt
+                      ? `${clock(person.startsAt, timeZone)} · ${person.locationName ?? "somewhere"}`
+                      : "Any time"}
+                  </Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
+        {/* Zone D — the timeline, unchanged, under a header instead of at the
+            top of the screen. */}
+        <Text style={[styles.zoneLabel, styles.dayLabel]}>THE REST OF THE DAY</Text>
         {timeline.rows.map((row, i) => (
           <Row key={row.kind === "group" ? row.startsAt + i : `gap-${i}`} row={row} timeZone={timeZone} onOpen={open} />
         ))}
 
-        {/* Docked above nothing in particular: a person has no place on a time
-            axis, and putting them in a slot would invent one. */}
-        {timeline.anytime.length > 0 ? (
+        {/* Only entities with no session at all land here now -- speakers are
+            placed at the session they are speaking at, and appear in Zone C. */}
+        {timeline.anytime.filter((i) => i.kind !== "PERSON").length > 0 ? (
           <View style={styles.shelf}>
             <Text style={styles.shelfLabel}>ANY TIME</Text>
-            {timeline.anytime.map((item) => (
+            {timeline.anytime.filter((i) => i.kind !== "PERSON").map((item) => (
               <Pressable
                 key={item.id}
                 accessibilityRole="button"
@@ -234,7 +355,29 @@ const styles = StyleSheet.create({
   dayText: { ...type.meta, color: colors.textMuted },
   dayTextOn: { color: colors.primary, fontFamily: "Inter_600SemiBold" },
 
-  content: { padding: spacing.md },
+  content: { padding: spacing.md, gap: spacing.md },
+  zone: { gap: spacing.sm },
+  zoneLabel: { ...type.label, color: colors.textMuted },
+  dayLabel: { marginTop: spacing.md },
+  personRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    minHeight: 64,
+    backgroundColor: colors.surface,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.lg,
+  },
+  monogram: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: colors.personWash,
+    alignItems: "center", justifyContent: "center",
+  },
+  monogramText: { ...type.meta, color: colors.person, fontFamily: "Inter_700Bold" },
+  personName: { ...type.cardTitle, color: colors.textPrimary },
+  personWhere: { ...type.meta, color: colors.textSecondary },
 
   groupRow: { flexDirection: "row", gap: 8 },
   gutter: { width: GUTTER_W, alignItems: "flex-end", paddingTop: 2 },

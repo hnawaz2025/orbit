@@ -511,3 +511,101 @@ export function planDays(items: PlanItem[], timeZone?: string): string[] {
   // ISO-ish YYYY-MM-DD sorts lexicographically, which is why en-CA is used.
   return [...days].sort();
 }
+
+// ---------------------------------------------------------------------------
+// The decision surface
+//
+// A plan's job is not to store commitments. Nobody at a conference commits --
+// they hedge, holding three plausible things at 14:00 and deciding at 13:55
+// based on how the last session went and where their coffee is. Saving is a
+// shortlist: cheap, reversible, plural, and *expected* to conflict.
+//
+// That reframes overlaps. On a calendar an overlap is an error the attendee
+// made; on a shortlist it is the raw material, and the plan's real work is
+// converting it into a next action, repeatedly, all day.
+
+/**
+ * What to do next.
+ *
+ * Ordered by what someone standing in a corridor actually needs: what they are
+ * in, then what is coming, then the first thing on the next day they have
+ * anything saved for. Declined items are skipped, so "not this" refills the
+ * card rather than leaving it stuck.
+ */
+export function selectNowNext(
+  items: PlanItem[],
+  now: Date,
+  declined: ReadonlySet<string> = new Set()
+): PlanItem | null {
+  const timed = sortPlan(items).filter(
+    (item) => item.startsAt && !declined.has(item.id)
+  );
+  const at = now.getTime();
+
+  const underway = timed.find(
+    (item) => Date.parse(item.startsAt!) <= at && at < Date.parse(item.endsAt ?? item.startsAt!)
+  );
+  if (underway) return underway;
+
+  const upcoming = timed.find((item) => Date.parse(item.startsAt!) > at);
+  return upcoming ?? null;
+}
+
+/**
+ * When to leave, given what came before.
+ *
+ * Only meaningful when the previous item is somewhere else -- two sessions on
+ * the same stage need no walking time, and printing one would train people to
+ * ignore the row.
+ */
+export function leaveBy(item: PlanItem, previous: PlanItem | null): IsoDateTime | null {
+  if (!item.startsAt) return null;
+  if (previous && previous.locationName && item.locationName === previous.locationName) return null;
+  return new Date(Date.parse(item.startsAt) - ROOM_CHANGE_MINUTES * 60_000).toISOString();
+}
+
+export interface Decision {
+  /** When the clash happens. */
+  startsAt: IsoDateTime;
+  /** The colliding items, in plan order. */
+  options: PlanItem[];
+}
+
+/**
+ * Clashes still open, oldest first.
+ *
+ * These are choices, not errors -- so they are surfaced as a queue to work
+ * through rather than as warnings decorating a timeline. A cluster disappears
+ * the moment any of its members is decided, because the attendee has answered
+ * the question the queue was asking.
+ */
+export function decisionsToMake(
+  items: PlanItem[],
+  decided: ReadonlySet<string> = new Set(),
+  now: Date = new Date()
+): Decision[] {
+  const ordered = sortPlan(items).filter((item) => item.startsAt);
+  const seen = new Set<string>();
+  const decisions: Decision[] = [];
+
+  for (const item of ordered) {
+    if (seen.has(item.id)) continue;
+
+    const clashing = ordered.filter((other) =>
+      findConflicts(item, [other]).some((c) => c.kind === "overlap")
+    );
+    if (clashing.length === 0) continue;
+
+    const group = [item, ...clashing];
+    for (const member of group) seen.add(member.id);
+
+    // Already answered, or already past -- either way there is nothing left to
+    // decide, and a queue that keeps asking is noise.
+    if (group.some((member) => decided.has(member.id))) continue;
+    if (Date.parse(item.endsAt ?? item.startsAt!) <= now.getTime()) continue;
+
+    decisions.push({ startsAt: item.startsAt!, options: group });
+  }
+
+  return decisions;
+}

@@ -93,7 +93,7 @@ export function DetailScreen({ navigation, route }: Props) {
       {item.subtitle ? <Text style={styles.subtitle}>{item.subtitle}</Text> : null}
 
       <Button
-        label={saved ? "In your plan — remove" : "Add to my plan"}
+        label={saved ? "Saved — remove" : "Save"}
         variant={saved ? "quiet" : "primary"}
         onPress={() => (saved ? remove(item.id) : add(item, timeZone))}
       />

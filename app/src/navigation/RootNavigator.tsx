@@ -38,7 +38,7 @@ function AskFlow() {
 function PlanFlow() {
   return (
     <PlanStack.Navigator screenOptions={screenOptions}>
-      <PlanStack.Screen name="Plan" component={PlanScreen} options={{ title: "My plan" }} />
+      <PlanStack.Screen name="Plan" component={PlanScreen} options={{ title: "My day" }} />
       <PlanStack.Screen name="Detail" component={DetailScreen} options={{ title: "" }} />
     </PlanStack.Navigator>
   );
@@ -93,7 +93,7 @@ export function RootNavigator() {
         name="PlanTab"
         component={PlanFlow}
         options={{
-          title: "Plan",
+          title: "My day",
           tabBarIcon: ({ color }) => (
             <View>
               <PlanIcon color={color} />
