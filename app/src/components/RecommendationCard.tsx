@@ -1,22 +1,9 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { RecommendedEntity } from "@orbit/shared";
 import { colors, radius, spacing, type } from "../theme";
+import { shortPlace } from "../utils/place";
 import { KindBadge } from "./KindBadge";
 import { TimeRail } from "./TimeRail";
-
-/**
- * Room names arrive long and repetitive -- "API World -- Workshop Stage A
- * (PRO)" -- and the leading conference name is on every one of them, so inside
- * the app it carries no information at all. Trimmed here rather than
- * server-side for now, which keeps the wire format unchanged.
- */
-function shortPlace(location: string | null): string | null {
-  if (!location) return null;
-  return location
-    .replace(/^(API World|AI TechWorld|CloudX|Santa Clara Convention Center)\s*--?\s*/i, "")
-    .replace(/\s+--\s+/g, " · ")
-    .trim();
-}
 
 export function RecommendationCard({
   item,

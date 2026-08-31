@@ -108,13 +108,16 @@ export function RootNavigator() {
 
 const styles = StyleSheet.create({
   bar: {
-    height: 56,
+    // No fixed height. 56pt left the labels sitting under the home indicator
+    // on a notched phone, clipped to "Mv dav". React Navigation adds the
+    // bottom inset itself as long as it is not overridden.
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.hairline,
     elevation: 0,
+    paddingTop: 6,
   },
-  label: { ...type.label },
+  label: { ...type.label, marginBottom: 2 },
   badge: {
     position: "absolute",
     top: -5,

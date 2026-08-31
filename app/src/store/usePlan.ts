@@ -70,6 +70,8 @@ interface PlanState {
   /** Settle a clash without picking: hedging is legal and must stay legal. */
   keepBoth: (ids: string[]) => void;
   decline: (id: string) => void;
+  /** Undo every skip for the day. */
+  resetSkips: () => void;
 }
 
 async function persist(
@@ -162,6 +164,11 @@ export const usePlan = create<PlanState>((set, get) => ({
     const decided = [...new Set([...get().decided, ...ids])];
     set({ decided });
     void persist(get().saved, get().timeZone, decided, get().declined);
+  },
+
+  resetSkips: () => {
+    set({ declined: [] });
+    void persist(get().saved, get().timeZone, get().decided, []);
   },
 
   decline: (id) => {

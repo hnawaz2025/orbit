@@ -15,6 +15,7 @@ import { DecisionCard } from "../components/DecisionCard";
 import { KindBadge } from "../components/KindBadge";
 import { NowNext } from "../components/NowNext";
 import { usePlan } from "../store/usePlan";
+import { shortPlace } from "../utils/place";
 import type { PlanStackParamList } from "../navigation/types";
 import { colors, radius, spacing, type } from "../theme";
 
@@ -58,14 +59,18 @@ function Block({
       accessibilityRole="button"
       accessibilityLabel={`Open ${item.title}`}
       onPress={() => onOpen(item.id)}
-      style={({ pressed }) => [styles.block, { height }, narrow && styles.blockNarrow, pressed && { opacity: 0.9 }]}
+      // minHeight, not height. Duration should be legible as height, but a
+      // fixed one made the card clip its own footer -- Remove and the end time
+      // rendered outside the white box, on the page background. Proportion is
+      // worth having; it is not worth breaking the card for.
+      style={({ pressed }) => [styles.block, { minHeight: height }, narrow && styles.blockNarrow, pressed && { opacity: 0.9 }]}
     >
       <Text style={[styles.blockTitle, narrow && styles.blockTitleNarrow]} numberOfLines={narrow ? 3 : 2}>
         {item.title}
       </Text>
       {item.locationName ? (
         <Text style={styles.blockPlace} numberOfLines={1}>
-          {item.locationName.replace(/^(API World|AI TechWorld|CloudX)\s*--?\s*/i, "")}
+          {shortPlace(item.locationName)}
         </Text>
       ) : null}
       <View style={styles.blockFoot}>
@@ -154,6 +159,7 @@ export function PlanScreen({ navigation }: Props) {
   const choose = usePlan((s) => s.choose);
   const keepBoth = usePlan((s) => s.keepBoth);
   const decline = usePlan((s) => s.decline);
+  const resetSkips = usePlan((s) => s.resetSkips);
 
   const days = useMemo(() => planDays(items, timeZone), [items, timeZone]);
 
@@ -244,6 +250,21 @@ export function PlanScreen({ navigation }: Props) {
       >
         {/* Zone A. Every zone disappears entirely when empty -- a placeholder
             for "nothing to decide" is worse than the space it occupies. */}
+        {/* Skipping everything used to empty this zone silently, leaving the
+            screen with no answer to its own question and no way back. */}
+        {!upNext && declined.length > 0 && items.some((i) => i.startsAt) ? (
+          <View style={styles.allSkipped}>
+            <Text style={styles.allSkippedTitle}>You've skipped everything today.</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => resetSkips()}
+              style={({ pressed }) => [styles.allSkippedButton, pressed && { opacity: 0.85 }]}
+            >
+              <Text style={styles.allSkippedText}>Show them again</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         {upNext ? (
           <NowNext
             item={upNext}
@@ -303,7 +324,7 @@ export function PlanScreen({ navigation }: Props) {
                   <Text style={styles.personName} numberOfLines={1}>{person.title}</Text>
                   <Text style={styles.personWhere} numberOfLines={1}>
                     {person.startsAt
-                      ? `${clock(person.startsAt, timeZone)} · ${person.locationName ?? "somewhere"}`
+                      ? `${clock(person.startsAt, timeZone)} · ${shortPlace(person.locationName) ?? "find them"}`
                       : "Any time"}
                   </Text>
                 </View>
@@ -314,7 +335,9 @@ export function PlanScreen({ navigation }: Props) {
 
         {/* Zone D — the timeline, unchanged, under a header instead of at the
             top of the screen. */}
-        <Text style={[styles.zoneLabel, styles.dayLabel]}>THE REST OF THE DAY</Text>
+        {timeline.rows.some((r) => r.kind === "group") ? (
+          <Text style={[styles.zoneLabel, styles.dayLabel]}>THE REST OF THE DAY</Text>
+        ) : null}
         {timeline.rows.map((row, i) => (
           <Row key={row.kind === "group" ? row.startsAt + i : `gap-${i}`} row={row} timeZone={timeZone} onOpen={open} />
         ))}
@@ -369,6 +392,24 @@ const styles = StyleSheet.create({
 
   content: { padding: spacing.md, gap: spacing.md },
   zone: { gap: spacing.sm },
+  allSkipped: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    gap: spacing.md,
+    alignItems: "flex-start",
+  },
+  allSkippedTitle: { ...type.cardTitle, color: colors.textPrimary },
+  allSkippedButton: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryWash,
+  },
+  allSkippedText: { ...type.meta, color: colors.primary, fontFamily: "Inter_600SemiBold" },
   zoneLabel: { ...type.label, color: colors.textMuted },
   dayLabel: { marginTop: spacing.md },
   personRow: {
@@ -398,6 +439,7 @@ const styles = StyleSheet.create({
 
   block: {
     flex: 1,
+    gap: spacing.xs,
     backgroundColor: colors.surface,
     borderRadius: radius.card,
     borderWidth: 1,

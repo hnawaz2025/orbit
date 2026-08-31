@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { leaveBy, railState, type PlanItem } from "@orbit/shared";
 import { colors, radius, spacing, type } from "../theme";
+import { shortPlace } from "../utils/place";
 
 function clock(iso: string, timeZone?: string): string {
   return new Date(iso).toLocaleTimeString([], {
@@ -60,7 +61,7 @@ export function NowNext({
           // Room names run to "API World -- Workshop Stage A (PRO)". Two lines
           // rather than one: truncating "Workshop Stage A" to "Workshop Sta…"
           // loses the only part an attendee navigates by.
-          <Text style={styles.place} numberOfLines={2}>{item.locationName}</Text>
+          <Text style={styles.place} numberOfLines={2}>{shortPlace(item.locationName)}</Text>
         ) : null}
       </Pressable>
 
