@@ -1,0 +1,65 @@
+# Render blueprint for Orbit.
+#
+# Two services: the API and its Postgres. The client is a static web bundle and
+# is deployed separately -- see DEPLOY.md -- because a conference attendee will
+# not install an app to try something a stranger showed them. A URL they can
+# scan is the only distribution that survives contact with a hallway.
+#
+# Secrets (sync: false) are never in this file. Render prompts for them on
+# first deploy and stores them itself.
+
+databases:
+  - name: orbit-db
+    plan: free
+    databaseName: orbit
+    user: orbit
+
+services:
+  - type: web
+    name: orbit-server
+    runtime: node
+    # Not free. The free tier spins down after fifteen minutes idle and takes
+    # roughly fifty seconds to wake, which lands on the first person to scan
+    # the QR code after a quiet spell -- the worst possible moment for it.
+    plan: starter
+    rootDir: server
+    # npm ci, not npm install: it installs exactly what package-lock.json pins,
+    # so a deploy cannot silently pick up a different dependency version than
+    # the one the tests ran against. The `cd ..` is required because this is an
+    # npm workspace -- dependencies are hoisted to the repo root, and
+    # @orbit/shared lives there and must be compiled before the server can
+    # import it.
+    buildCommand: cd .. && npm ci && npm run build --workspace server
+    startCommand: npm run start --workspace server
+    healthCheckPath: /health
+    envVars:
+      # 24+, because @orbit/shared ships compiled JS but tsx is still used by
+      # the ingest CLI. 22 also works for the server itself.
+      - key: NODE_VERSION
+        value: "24"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: orbit-db
+          property: connectionString
+
+      # Reads the question and writes the reasons. See server/.env.example for
+      # why this is separate from the extraction model.
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: REASONING_MODEL
+        value: gpt-5.4-mini
+      - key: EMBEDDING_MODEL
+        value: text-embedding-3-small
+
+      # Batch extraction only -- the sponsors page. Sessions and speakers come
+      # from Sessionize, which needs no key at all.
+      - key: AI_LLM_PROVIDER
+        value: featherless
+      - key: FEATHERLESS_API_KEY
+        sync: false
+      - key: FEATHERLESS_MODEL
+        value: Qwen/Qwen2.5-7B-Instruct
+
+      # Optional. Absent means ingest skips enrichment rather than failing.
+      - key: SERPAPI_API_KEY
+        sync: false
