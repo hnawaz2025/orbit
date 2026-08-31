@@ -16,12 +16,35 @@ const env = loadEnv();
 // is merely slow, but the same client serves /ask, where a conference attendee
 // is standing in a hallway watching a spinner -- 60s bounds the worst case near
 // two minutes instead of thirty.
-const client = new OpenAI({
-  apiKey: env.FEATHERLESS_API_KEY,
-  baseURL: "https://api.featherless.ai/v1",
-  timeout: 60_000,
-  maxRetries: 1,
-});
+/**
+ * Built on first use, not at import.
+ *
+ * The OpenAI SDK throws when constructed without a key, so creating this at
+ * module scope made importing the app fail on any deployment that has no
+ * Featherless credentials -- which is every deployment, since extraction runs
+ * from the CLI. Lazily, an app that never extracts never needs the key, and one
+ * that does gets a sentence explaining what is missing.
+ */
+let featherless: OpenAI | null = null;
+
+function featherlessClient(): OpenAI {
+  if (featherless) return featherless;
+
+  if (!env.FEATHERLESS_API_KEY || !env.FEATHERLESS_MODEL) {
+    throw new Error(
+      "FEATHERLESS_API_KEY and FEATHERLESS_MODEL are required for extraction. " +
+        "Only the ingest CLI needs them -- the server answers questions through OpenAI."
+    );
+  }
+
+  featherless = new OpenAI({
+    apiKey: env.FEATHERLESS_API_KEY,
+    baseURL: "https://api.featherless.ai/v1",
+    timeout: 60_000,
+    maxRetries: 1,
+  });
+  return featherless;
+}
 
 // Serves embeddings, Whisper, and the per-question reasoning calls. Kept
 // separate from the Featherless client because it is a different account with
@@ -87,7 +110,7 @@ export async function complete({
   // is not supported with this model" -- while Featherless only understands
   // that name. Sending the wrong one is a 400, not a degraded answer, so this
   // is not a preference.
-  const response = await (usingOpenAi ? embeddingClient : client).chat.completions.create(
+  const response = await (usingOpenAi ? embeddingClient : featherlessClient()).chat.completions.create(
     usingOpenAi
       ? {
           model: model ?? env.REASONING_MODEL,

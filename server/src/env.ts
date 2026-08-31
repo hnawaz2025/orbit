@@ -43,25 +43,18 @@ const baseSchema = z.object({
   SERPAPI_API_KEY: z.string().optional(),
 });
 
-const envSchema = baseSchema.superRefine((env, ctx) => {
-  if (env.AI_LLM_PROVIDER === "featherless") {
-    if (!env.FEATHERLESS_API_KEY) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["FEATHERLESS_API_KEY"],
-        message: "FEATHERLESS_API_KEY is required when AI_LLM_PROVIDER=featherless",
-      });
-    }
-    if (!env.FEATHERLESS_MODEL) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["FEATHERLESS_MODEL"],
-        message:
-          "FEATHERLESS_MODEL is required when AI_LLM_PROVIDER=featherless. Check that model's concurrency-unit cost before using it in a live demo.",
-      });
-    }
-  }
-});
+// Featherless is deliberately not required.
+//
+// It used to be, because it answered every model call. It now serves only the
+// Tier 2 extraction path, which runs from the ingest CLI on a developer's
+// machine -- the deployed server does facets and reasons through OpenAI and
+// never touches it. Demanding the key at boot meant a perfectly functional
+// deployment refused to start over a credential it would never use, and in a
+// serverless runtime that is a crash on every cold start rather than a
+// readable message.
+//
+// The key is checked where it is used instead. See featherlessClient().
+const envSchema = baseSchema;
 
 export type Env = z.infer<typeof envSchema>;
 
