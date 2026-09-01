@@ -118,12 +118,15 @@ export function AskScreen({ navigation, route }: Props) {
             editable={!busy}
           />
           <View style={styles.composerFoot}>
+            {/* Silent until it has something to report. The microphone is a
+                recognisable glyph and does not need labelling at rest; the
+                states that matter are the two where it is live. */}
             <Text style={styles.micHint}>
               {voice.state === "recording"
                 ? "Listening — release to send"
                 : voice.state === "transcribing"
                   ? "Writing that down…"
-                  : "or hold to talk"}
+                  : ""}
             </Text>
             <MicButton state={voice.state} onStart={voice.startRecording} onStop={finishSpeaking} />
           </View>
@@ -174,8 +177,7 @@ export function AskScreen({ navigation, route }: Props) {
           onPress={() => Linking.openURL(MAKER_LINKEDIN).catch(() => {})}
         >
           <Text style={styles.madeByText}>
-            Built by Hafsa Nawaz. If Orbit found you someone worth meeting, I&rsquo;d love to hear
-            about it.
+            If Orbit found you someone worth meeting, I&rsquo;d love to hear about it.
           </Text>
           <View style={styles.madeByMark}>
             <LinkedInIcon color={colors.white} size={14} />
