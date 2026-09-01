@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Linking,
+  Pressable,
   Platform,
   ScrollView,
   StyleSheet,
@@ -13,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { api } from "../api/client";
 import { Button } from "../components/Button";
+import { LinkedInIcon } from "../components/TabIcons";
 import { MicButton } from "../components/MicButton";
 import { OrganizerButton } from "../components/OrganizerButton";
 import { PassPicker } from "../components/PassPicker";
@@ -32,6 +35,8 @@ const EXAMPLES = [
   "I want to meet someone who has shipped agents in production",
   "Looking for a vendor who does document extraction with an audit trail",
 ];
+
+const MAKER_LINKEDIN = "https://www.linkedin.com/in/hafsanawaz2000";
 
 export function AskScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
@@ -144,6 +149,20 @@ export function AskScreen({ navigation, route }: Props) {
             ))}
           </View>
         )}
+
+        {/* Sits at the very bottom, after the examples, deliberately.
+            Someone reads this only once they have decided the thing is worth
+            their time, which is the only moment a "who made this" line is
+            welcome rather than in the way. */}
+        <Pressable
+          style={styles.madeBy}
+          accessibilityRole="link"
+          accessibilityLabel="Connect with the maker on LinkedIn"
+          onPress={() => Linking.openURL(MAKER_LINKEDIN).catch(() => {})}
+        >
+          <Text style={styles.madeByText}>Built by Hafsa Nawaz</Text>
+          <LinkedInIcon color={colors.textMuted} size={15} />
+        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -152,6 +171,14 @@ export function AskScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.xl, gap: spacing.lg, paddingBottom: spacing.xxxl },
+  madeBy: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    marginTop: spacing.xl,
+  },
+  madeByText: { ...type.meta, color: colors.textMuted },
   notice: {
     ...type.meta,
     color: colors.textMuted,
