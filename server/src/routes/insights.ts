@@ -134,13 +134,41 @@ insightsRouter.get(
     unmet.length = Math.min(unmet.length, UNMET_LIMIT);
 
     // What the corpus is actually being asked to deliver.
+    // People are counted separately. Ranking them inside the same list as
+    // sessions guarantees they lose it -- see the note on the field.
+    const peopleIds = await prisma.entity.findMany({
+      where: { eventId: event.id, kind: "PERSON" },
+      select: { id: true },
+    });
+
     const recommended = await prisma.recommendation.groupBy({
       by: ["entityId"],
-      where: { query: { eventId: event.id } },
+      // People are excluded here and counted on their own below. Before that
+      // they appeared in both lists, which double-counts the same fact and
+      // makes the sessions list answer two questions badly instead of one
+      // well.
+      where: { query: { eventId: event.id }, entityId: { notIn: peopleIds.map((p) => p.id) } },
       _count: { entityId: true },
       orderBy: { _count: { entityId: "desc" } },
       take: 8,
     });
+
+    const requestedPeople = await prisma.recommendation.groupBy({
+      by: ["entityId"],
+      where: { query: { eventId: event.id }, entityId: { in: peopleIds.map((p) => p.id) } },
+      _count: { entityId: true },
+      orderBy: { _count: { entityId: "desc" } },
+      take: 6,
+    });
+
+    const peopleById = new Map(
+      (
+        await prisma.entity.findMany({
+          where: { id: { in: requestedPeople.map((r) => r.entityId) } },
+          select: { id: true, title: true, subtitle: true },
+        })
+      ).map((e) => [e.id, e])
+    );
 
     const entities = await prisma.entity.findMany({
       where: { id: { in: recommended.map((r) => r.entityId) } },
@@ -163,6 +191,14 @@ insightsRouter.get(
           const entity = byId.get(r.entityId);
           return entity
             ? { id: entity.id, title: entity.title, kind: entity.kind, times: r._count.entityId }
+            : null;
+        })
+        .filter((row): row is NonNullable<typeof row> => row !== null),
+      mostRequestedPeople: requestedPeople
+        .map((r) => {
+          const person = peopleById.get(r.entityId);
+          return person
+            ? { id: person.id, title: person.title, subtitle: person.subtitle, times: r._count.entityId }
             : null;
         })
         .filter((row): row is NonNullable<typeof row> => row !== null),

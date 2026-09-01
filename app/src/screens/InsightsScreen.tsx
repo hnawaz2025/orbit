@@ -200,6 +200,28 @@ export function InsightsScreen() {
         </View>
       ) : null}
 
+      {data.mostRequestedPeople.length > 0 ? (
+        <View style={styles.section}>
+          <Text style={styles.label}>WHO ATTENDEES WERE SENT TO</Text>
+          {/* Counted separately from the sessions above rather than filtered
+              out of them: a question returns about four sessions and one
+              person, so in a single list people never survive the cut. This
+              answers "who was in demand" -- who to invite back, and who
+              deserved a bigger room. */}
+          {data.mostRequestedPeople.map((p) => (
+            <View key={p.id} style={styles.recRow}>
+              <Text style={styles.recTimes}>{p.times}×</Text>
+              <View style={styles.personText}>
+                <Text style={styles.recTitle} numberOfLines={1}>{p.title}</Text>
+                {p.subtitle ? (
+                  <Text style={styles.personRole} numberOfLines={1}>{p.subtitle}</Text>
+                ) : null}
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
       <Text style={styles.footnote}>
         Questions are stored against an anonymous device token and never joined to a person.
       </Text>
@@ -279,6 +301,8 @@ const styles = StyleSheet.create({
   barFill: { height: 8, backgroundColor: colors.primary },
   barCount: { ...type.meta, color: colors.textMuted, width: 22, textAlign: "right" },
 
+  personText: { flex: 1, gap: 1 },
+  personRole: { ...type.meta, color: colors.textMuted },
   recRow: {
     flexDirection: "row",
     alignItems: "center",

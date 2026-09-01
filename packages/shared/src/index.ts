@@ -677,6 +677,25 @@ export interface EventInsights {
 
   /** What the programme is actually delivering against. */
   mostRecommended: { id: string; title: string; kind: EntityKind; times: number }[];
+
+  /**
+   * The speakers attendees were most often pointed at.
+   *
+   * Separate from mostRecommended rather than filtered out of it, because a
+   * single ranked list is always won by sessions: a question returns roughly
+   * four of them and one person, so people never survive the cut. An organizer
+   * asking "who was in demand" was reading a list that could not answer them.
+   *
+   * A different question from "which talk was popular", and arguably the more
+   * useful one -- it says who to invite back, and who deserved a bigger room.
+   */
+  mostRequestedPeople: {
+    id: string;
+    title: string;
+    /** "Staff Engineer @ Snowflake" — one line of who they are. */
+    subtitle: string | null;
+    times: number;
+  }[];
 }
 
 /**
