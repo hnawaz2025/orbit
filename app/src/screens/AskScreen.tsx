@@ -103,24 +103,37 @@ export function AskScreen({ navigation, route }: Props) {
           your time, and tells you where to catch them.
         </Text>
 
-        <TextInput
-          style={styles.input}
-          value={text}
-          onChangeText={setText}
-          placeholder="We're migrating 200 internal APIs and our consumers keep breaking…"
-          placeholderTextColor={colors.textMuted}
-          multiline
-          textAlignVertical="top"
-          editable={!busy}
-        />
+        {/* One box, the way a message composer reads: the microphone is an
+            alternative way to fill this field, so it belongs inside it rather
+            than competing with the submit button underneath. */}
+        <View style={styles.composer}>
+          <TextInput
+            style={styles.input}
+            value={text}
+            onChangeText={setText}
+            placeholder="We're migrating 200 internal APIs and our consumers keep breaking…"
+            placeholderTextColor={colors.textMuted}
+            multiline
+            textAlignVertical="top"
+            editable={!busy}
+          />
+          <View style={styles.composerFoot}>
+            <Text style={styles.micHint}>
+              {voice.state === "recording"
+                ? "Listening — release to send"
+                : voice.state === "transcribing"
+                  ? "Writing that down…"
+                  : "or hold to talk"}
+            </Text>
+            <MicButton state={voice.state} onStart={voice.startRecording} onStop={finishSpeaking} />
+          </View>
+        </View>
 
         {error || voice.error ? (
           <Text style={styles.error}>{error ?? voice.error}</Text>
         ) : null}
 
         <PassPicker value={pass} onChange={setPass} />
-
-        <MicButton state={voice.state} onStart={voice.startRecording} onStop={finishSpeaking} />
 
         <Button label="Find my people" onPress={submit} loading={busy} disabled={text.trim().length === 0} />
 
@@ -160,8 +173,13 @@ export function AskScreen({ navigation, route }: Props) {
           accessibilityLabel="Connect with the maker on LinkedIn"
           onPress={() => Linking.openURL(MAKER_LINKEDIN).catch(() => {})}
         >
-          <Text style={styles.madeByText}>Built by Hafsa Nawaz</Text>
-          <LinkedInIcon color={colors.textMuted} size={15} />
+          <Text style={styles.madeByText}>
+            Built by Hafsa Nawaz. If Orbit found you someone worth meeting, I&rsquo;d love to hear
+            about it.
+          </Text>
+          <View style={styles.madeByMark}>
+            <LinkedInIcon color={colors.white} size={14} />
+          </View>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -177,8 +195,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: spacing.sm,
     marginTop: spacing.xl,
+    paddingHorizontal: spacing.lg,
   },
-  madeByText: { ...type.meta, color: colors.textMuted },
+  madeByText: { ...type.meta, color: colors.textMuted, flexShrink: 1 },
+  madeByMark: {
+    // The same brand blue and white mark the speakers carry, at a size that
+    // suits a footer rather than an action row. One LinkedIn treatment in the
+    // app, not two.
+    width: 26,
+    height: 26,
+    borderRadius: 7,
+    backgroundColor: "#0A66C2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   notice: {
     ...type.meta,
     color: colors.textMuted,
@@ -198,16 +228,29 @@ const styles = StyleSheet.create({
   kicker: { ...type.label, color: colors.primary },
   heading: { ...type.display, color: colors.textPrimary },
   sub: { ...type.body, color: colors.textSecondary },
-  input: {
-    minHeight: 132,
+  composer: {
     backgroundColor: colors.surface,
     borderRadius: radius.input,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  input: {
+    minHeight: 132,
     padding: spacing.lg,
+    paddingBottom: spacing.sm,
     ...type.body,
     color: colors.textPrimary,
   },
+  composerFoot: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingLeft: spacing.lg,
+    paddingRight: spacing.sm,
+    paddingBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  micHint: { ...type.meta, color: colors.textMuted, flexShrink: 1 },
   error: { ...type.body, color: colors.error },
   thinking: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   thinkingText: { ...type.meta, color: colors.textMuted },

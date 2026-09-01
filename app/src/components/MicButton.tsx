@@ -1,10 +1,17 @@
 import { useEffect, useRef } from "react";
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
-import { colors, radius, spacing, type } from "../theme";
+import { Animated, Easing, Pressable, StyleSheet } from "react-native";
+import { MicIcon } from "./TabIcons";
+import { colors } from "../theme";
 import type { RecordingState } from "../hooks/useVoiceRecording";
 
 /**
- * Hold to talk, release to send.
+ * Hold to talk, release to send. Lives inside the composer.
+ *
+ * It was a full-width button reading "Hold to talk", which took as much of the
+ * screen as the thing it was an alternative to and put a second call to action
+ * directly above the real one. As a mark in the corner of the input it reads
+ * the way every other message box on a phone does, and costs the layout
+ * nothing.
  *
  * Hold rather than tap-to-start/tap-to-stop because the alternative fails in
  * exactly the situation this exists for: a hallway, walking, half-attention. A
@@ -32,7 +39,8 @@ export function MicButton({
 
     // A visible, continuous signal that the microphone is live. The failure
     // this guards against is not aesthetic: someone who does not realise they
-    // are still recording keeps talking into a hallway.
+    // are still recording keeps talking into a hallway. It matters more now
+    // that the control is small, not less.
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, { toValue: 1, duration: 700, easing: Easing.out(Easing.ease), useNativeDriver: true }),
@@ -43,48 +51,40 @@ export function MicButton({
     return () => loop.stop();
   }, [state, pulse]);
 
-  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
+  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] });
   const busy = state === "transcribing";
-
-  const label =
-    state === "recording" ? "Listening — release to send" : busy ? "Writing that down…" : "Hold to talk";
+  const recording = state === "recording";
 
   return (
-    <View style={styles.wrap}>
-      <Animated.View style={{ transform: [{ scale }], width: "100%" }}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Hold to describe your problem out loud"
-          accessibilityState={{ busy }}
-          onPressIn={busy ? undefined : onStart}
-          onPressOut={busy ? undefined : onStop}
-          style={[
-            styles.button,
-            state === "recording" && styles.recording,
-            busy && styles.busy,
-          ]}
-        >
-          <Text style={[styles.label, state === "recording" && styles.labelRecording]}>{label}</Text>
-        </Pressable>
-      </Animated.View>
-    </View>
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Hold to describe your problem out loud"
+        accessibilityState={{ busy }}
+        onPressIn={busy ? undefined : onStart}
+        onPressOut={busy ? undefined : onStop}
+        // 44pt is the smallest target a thumb reliably hits, and this one is
+        // pressed while walking.
+        hitSlop={8}
+        style={[styles.button, recording && styles.recording, busy && styles.busy]}
+      >
+        <MicIcon color={recording ? colors.white : colors.primary} size={20} />
+      </Pressable>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { width: "100%" },
   button: {
-    minHeight: 56,
-    borderRadius: radius.pill,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: spacing.xl,
     backgroundColor: colors.surface,
-    borderWidth: 2,
-    borderColor: colors.primary,
+    borderWidth: 1.5,
+    borderColor: colors.border,
   },
   recording: { backgroundColor: colors.urgent, borderColor: colors.urgent },
-  busy: { opacity: 0.6 },
-  label: { ...type.cardTitle, color: colors.primary },
-  labelRecording: { color: colors.white },
+  busy: { opacity: 0.5 },
 });

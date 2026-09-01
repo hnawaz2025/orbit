@@ -35,6 +35,22 @@ export function LinkedInIcon({ color, size = 22 }: { color: string; size?: numbe
   );
 }
 
+/** A microphone, for the composer. */
+export function MicIcon({ color, size = 20 }: { color: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Rect x="9" y="2.5" width="6" height="11" rx="3" fill={color} />
+      <Path
+        d="M5.5 11a6.5 6.5 0 0 0 13 0"
+        stroke={color}
+        strokeWidth="1.9"
+        strokeLinecap="round"
+      />
+      <Path d="M12 17.5v4" stroke={color} strokeWidth="1.9" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 /** Bars: the shape of an aggregate. */
 export function InsightsIcon({ color, size = 24 }: { color: string; size?: number }) {
   return (
