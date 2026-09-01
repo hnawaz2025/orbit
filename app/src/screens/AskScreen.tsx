@@ -119,6 +119,16 @@ export function AskScreen({ navigation, route }: Props) {
 
         <Button label="Find my people" onPress={submit} loading={busy} disabled={text.trim().length === 0} />
 
+        {/* Consent belongs where the typing happens.
+            The same sentence already sat inside the organiser view, which is
+            the one screen an attendee never opens -- so the people whose
+            questions are being kept were the only people not told. It is one
+            line, before the fact, in plain words. */}
+        <Text style={styles.notice}>
+          Your question is saved anonymously and shown to the organisers as part of what attendees
+          needed. No name, no account.
+        </Text>
+
         {busy ? (
           <View style={styles.thinking}>
             <ActivityIndicator color={colors.primary} />
@@ -142,6 +152,12 @@ export function AskScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.xl, gap: spacing.lg, paddingBottom: spacing.xxxl },
+  notice: {
+    ...type.meta,
+    color: colors.textMuted,
+    textAlign: "center",
+    marginTop: spacing.md,
+  },
   topRow: {
     flexDirection: "row",
     alignItems: "center",
