@@ -12,3 +12,5 @@ server/generated/
 # Rendered conference pages, cached to disk by src/ingest/fetch.ts. Machine-
 # local and regenerable, and some of it is other people's site content.
 .cache/
+.vercel
+.env*

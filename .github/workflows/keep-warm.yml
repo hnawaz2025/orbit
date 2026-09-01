@@ -1,0 +1,37 @@
+# Keeps the database awake for the duration of the conference.
+#
+# Neon's free tier suspends an idle database, and the first request after that
+# fails rather than waiting for the resume. The server retries (see
+# server/src/db.ts), which turns that into a slow answer instead of an error --
+# but a retry the attendee waits through is worse than a database that never
+# slept. This pings often enough that it never does.
+#
+# GitHub's scheduler is best-effort and can run late under load, so five
+# minutes is a request for "about every five minutes", not a guarantee. The
+# retry underneath is what makes that acceptable.
+name: keep-warm
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  # So it can be switched on by hand on the morning of the event.
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake the API and its database
+        run: |
+          for host in \
+            https://orbit-server-hafsa24.vercel.app \
+            https://orbit-server-pearl.vercel.app
+          do
+            code=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 30 "$host/health" || echo "000")
+            echo "$host -> $code $(cat /tmp/body 2>/dev/null | head -c 80)"
+            # /health reports db connectivity, so a 200 with "db":"connected"
+            # is the only result that actually proves the database is awake.
+            if [ "$code" != "200" ]; then
+              echo "::warning::$host returned $code"
+            fi
+          done

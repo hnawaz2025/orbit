@@ -1,0 +1,182 @@
+[
+  {
+    "device": "priya",
+    "pass": "PRO",
+    "role": "answered",
+    "text": "our agent can call the refund api and i can't explain to anyone what actually stops it refunding 50k by accident"
+  },
+  {
+    "device": "priya",
+    "pass": "PRO",
+    "role": "answered",
+    "text": "p99 on our agent endpoint is 11 seconds and most of it is the model deciding which tool to call, where do i even start"
+  },
+  {
+    "device": "priya",
+    "pass": "PRO",
+    "role": "answered",
+    "text": "we're getting silent failures where the agent gets a 200 back and the data is wrong"
+  },
+  {
+    "device": "priya",
+    "pass": "PRO",
+    "role": "answered",
+    "text": "half our internal apis have no spec and the coding agent keeps inventing endpoints that don't exist"
+  },
+  {
+    "device": "priya",
+    "pass": "PRO",
+    "role": "person",
+    "text": "who here has actually run agents against a live payments system, i'd rather talk to a person than watch a slide"
+  },
+  {
+    "device": "marcus",
+    "pass": "PRO",
+    "role": "answered",
+    "text": "code review is the bottleneck now, my team ships four times the prs and every one is written by a machine and read by a tired human"
+  },
+  {
+    "device": "marcus",
+    "pass": "PRO",
+    "role": "answered",
+    "text": "our team keeps building agent pocs that never ship and i need to know what makes the difference"
+  },
+  {
+    "device": "marcus",
+    "pass": "PRO",
+    "role": "weak",
+    "text": "how do you do performance reviews for engineers when half the output is the model's"
+  },
+  {
+    "device": "marcus",
+    "pass": "PRO",
+    "role": "person",
+    "text": "who else here manages a platform team, i want to compare notes with someone in the same boat"
+  },
+  {
+    "device": "ana",
+    "pass": "PRO",
+    "role": "answered",
+    "text": "our gateway is falling over under agent traffic and i need to know if the answer is rate limits or a different architecture"
+  },
+  {
+    "device": "ana",
+    "pass": "PRO",
+    "role": "answered",
+    "text": "we've got old endpoints still live and nobody knows who's calling them, i'm scared to turn anything off"
+  },
+  {
+    "device": "ana",
+    "pass": "PRO",
+    "role": "weak",
+    "text": "our versioning scheme made sense in 2019 and now every client breaks, is there a sane way to move off it"
+  },
+  {
+    "device": "kenji",
+    "pass": "PREMIUM",
+    "role": "answered",
+    "text": "our agent can read patient records through a tool call and i need to understand where the trust boundary actually is"
+  },
+  {
+    "device": "kenji",
+    "pass": "PREMIUM",
+    "role": "answered",
+    "text": "how are people testing for prompt injection when the tool descriptions themselves are the attack surface"
+  },
+  {
+    "device": "kenji",
+    "pass": "PREMIUM",
+    "role": "answered",
+    "text": "i've only ever threat modelled data flows, how do i do it for something that can take actions on its own"
+  },
+  {
+    "device": "tobi",
+    "pass": "OPEN",
+    "role": "answered",
+    "text": "our inference bill is bigger than our salaries and i don't know which feature is eating it"
+  },
+  {
+    "device": "tobi",
+    "pass": "OPEN",
+    "role": "weak",
+    "text": "we're six people and every enterprise deal dies in their vendor risk review, what do i actually need before i can sell to a bank"
+  },
+  {
+    "device": "dani",
+    "pass": "PREMIUM",
+    "role": "answered",
+    "text": "our docs were written for humans and now most of the traffic reading them is coding agents, what actually changes"
+  },
+  {
+    "device": "dani",
+    "pass": "PREMIUM",
+    "role": "answered",
+    "text": "i need to convince my ceo that developer experience is worth funding and i need a number that isn't made up"
+  },
+  {
+    "device": "rosa",
+    "pass": "PRO",
+    "role": "person",
+    "text": "who's here from elastic, i want to ask about their agent integration before we commit"
+  },
+  {
+    "device": "rosa",
+    "pass": "PRO",
+    "role": "answered",
+    "text": "which sessions would help me argue our product against a team that wants to build it themselves"
+  },
+  {
+    "device": "wes",
+    "pass": "OPEN",
+    "role": "logistics",
+    "text": "where do i pick up my badge and is there parking nearby"
+  },
+  {
+    "device": "wes",
+    "pass": "OPEN",
+    "role": "answered",
+    "text": "our spring boot api falls over on black friday every year and i want to hear from someone who's fixed that"
+  },
+  {
+    "device": "bg-01",
+    "pass": "OPEN",
+    "role": "logistics",
+    "text": "is there wifi in the expo hall and what's the password"
+  },
+  {
+    "device": "bg-02",
+    "pass": "PRO",
+    "role": "logistics",
+    "text": "i've got a call at 2, is there anywhere quiet to take it"
+  },
+  {
+    "device": "bg-03",
+    "pass": "OPEN",
+    "role": "weak",
+    "text": "my two juniors have basically stopped writing code themselves and i can't tell if they're learning anything or just approving whatever the model says"
+  },
+  {
+    "device": "bg-04",
+    "pass": "PRO",
+    "role": "weak",
+    "text": "has anyone got a real number for what it costs to serve one customer's agent usage, we're pricing blind"
+  },
+  {
+    "device": "bg-05",
+    "pass": "PRO",
+    "role": "weak",
+    "text": "we don't have contract tests between services and every release something downstream breaks, where do you even start with 200 services"
+  },
+  {
+    "device": "bg-06",
+    "pass": "PREMIUM",
+    "role": "answered",
+    "text": "should we run our own models or stay on an api, my board keeps asking and i keep dodging"
+  },
+  {
+    "device": "bg-07",
+    "pass": "OPEN",
+    "role": "person",
+    "text": "who's here that's sold an ai product into a regulated industry, that's the conversation i need"
+  }
+]
