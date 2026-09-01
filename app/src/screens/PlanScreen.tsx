@@ -121,7 +121,7 @@ function Row({ row, timeZone, onOpen }: { row: TimelineRow; timeZone?: string; o
         <View style={styles.clashRow}>
           <View style={styles.gutter} />
           <View style={styles.clash}>
-            <Text style={styles.clashText}>You can only be at one of these.</Text>
+            <Text style={styles.clashText}>These clash.</Text>
           </View>
         </View>
       ) : null}

@@ -128,3 +128,42 @@ describe("toPlanItem", () => {
     assert.equal(item.locationName, "Workshop Stage A");
   });
 });
+
+describe("a person is not a rival to the session they speak at", () => {
+  // A person inherits the time and room of their session, so before this the
+  // plan told you to choose between two people standing on the same stage.
+  const stage = { locationName: "Main Stage", startsAt: at(10), endsAt: at(11) };
+
+  test("two speakers on one panel do not clash", () => {
+    const one = item({ id: "one", kind: "PERSON", title: "Speaker One", ...stage });
+    const two = item({ id: "two", kind: "PERSON", title: "Speaker Two", ...stage });
+    assert.deepEqual(findConflicts(one, [two]), []);
+  });
+
+  test("a speaker does not clash with their own talk", () => {
+    const person = item({ id: "p", kind: "PERSON", title: "Speaker", ...stage });
+    const talk = item({ id: "t", kind: "TALK", title: "The talk", ...stage });
+    assert.deepEqual(findConflicts(person, [talk]), []);
+  });
+
+  test("a speaker still clashes with a session in another room", () => {
+    const person = item({ id: "p", kind: "PERSON", title: "Speaker", ...stage });
+    const elsewhere = item({ id: "e", locationName: "Expo Stage", startsAt: at(10, 30), endsAt: at(11, 30) });
+    assert.deepEqual(findConflicts(person, [elsewhere]), [{ kind: "overlap", withId: "e" }]);
+  });
+
+  test("a speaker with no known room still clashes", () => {
+    // Unknown location is not evidence of the same location.
+    const person = item({ id: "p", kind: "PERSON", title: "Speaker", ...stage, locationName: null });
+    const talk = item({ id: "t", kind: "TALK", ...stage });
+    assert.deepEqual(findConflicts(person, [talk]), [{ kind: "overlap", withId: "t" }]);
+  });
+
+  test("two sessions double-booked into one room are still flagged", () => {
+    // A contradiction in the programme, and the attendee is better served
+    // seeing it than having it filtered away.
+    const a = item({ id: "a", ...stage });
+    const b = item({ id: "b", ...stage });
+    assert.deepEqual(findConflicts(a, [b]), [{ kind: "overlap", withId: "b" }]);
+  });
+});

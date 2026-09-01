@@ -252,7 +252,10 @@ export function findConflicts(item: PlanItem, others: PlanItem[]): PlanConflict[
     if (Number.isNaN(otherStart) || Number.isNaN(otherEnd)) continue;
 
     if (start < otherEnd && otherStart < end) {
-      conflicts.push({ kind: "overlap", withId: other.id });
+      // Same room, same time is one place to stand, not a decision.
+      if (!sameStage(item, other)) {
+        conflicts.push({ kind: "overlap", withId: other.id });
+      }
       continue;
     }
 
@@ -426,6 +429,32 @@ export interface Timeline {
   anytime: PlanItem[];
 }
 
+/**
+ * Two plan items that are really one place to stand.
+ *
+ * A person inherits the time *and the room* of the session they speak at, so
+ * two speakers on one panel used to come out as "you can only be at one of
+ * these" -- advice to choose between two people standing next to each other.
+ * A talk and its own speaker had the same problem.
+ *
+ * Deliberately requires one side to be a person rather than only comparing
+ * rooms. Two *sessions* scheduled in one room at one time is a contradiction
+ * in the programme, and an attendee is better served by seeing it than by
+ * having it quietly filtered away.
+ *
+ * Unknown location is not the same location: if either side is missing a room
+ * we cannot claim they coincide, and the overlap stands.
+ */
+function sameStage(a: PlanItem, b: PlanItem): boolean {
+  const involvesPerson = a.kind === "PERSON" || b.kind === "PERSON";
+  return (
+    involvesPerson &&
+    a.locationName !== null &&
+    b.locationName !== null &&
+    a.locationName === b.locationName
+  );
+}
+
 function overlaps(a: PlanItem, b: PlanItem): boolean {
   if (!a.startsAt || !a.endsAt || !b.startsAt || !b.endsAt) return false;
   return Date.parse(a.startsAt) < Date.parse(b.endsAt) &&
@@ -493,7 +522,9 @@ export function buildTimeline(items: PlanItem[], dayKey: string, timeZone?: stri
       items: drawn,
       overflow: cluster.length - drawn.length,
       height: Math.max(...cluster.map(blockHeight)),
-      collides: cluster.length > 1,
+      // Drawn together because they share the slot, but only flagged when
+      // they are actually in different rooms.
+      collides: cluster.some((one) => cluster.some((two) => one !== two && !sameStage(one, two))),
       startsAt,
     });
 
