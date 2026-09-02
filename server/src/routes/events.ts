@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { EventSummary, LinkedEntity, RecommendedEntity } from "@orbit/shared";
 import { prisma } from "../db";
+import { isStillToCome } from "../match/upcoming";
 import { AppError } from "../errors";
 import { asyncHandler } from "../middleware/asyncHandler";
 
@@ -99,7 +100,11 @@ eventsRouter.get(
         endsAt: link.from.endsAt?.toISOString() ?? null,
         relation: link.kind,
       })),
-    ];
+      // Sessions that have already ended are dropped, exactly as in /ask.
+      // This route backs the detail screen, so without it the finished talk
+      // that /ask now hides reappears the moment someone taps through to the
+      // speaker. A link with no end time is not time-bound and stays.
+    ].filter((link) => isStillToCome(link.endsAt, new Date()));
 
     const body: RecommendedEntity & { timezone: string } = {
       id: entity.id,

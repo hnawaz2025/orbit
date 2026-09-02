@@ -10,6 +10,7 @@ import { extractFacets, embeddingTextForQuery } from "../match/facets";
 import { explainRecommendations } from "../match/explain";
 import { filterCandidates } from "../match/filter";
 import { rankCandidates, reserveForPreferredKinds } from "../match/rank";
+import { isStillToCome } from "../match/upcoming";
 import { retrieveCandidates } from "../match/retrieve";
 import { normaliseLevel, preferredKinds } from "../match/types";
 import { asyncHandler } from "../middleware/asyncHandler";
@@ -245,10 +246,21 @@ askRouter.post(
         relation,
       });
 
+      // Over is over here too.
+      //
+      // filterCandidates drops a session that has ended, but a person is not
+      // time-bound and so is never dropped -- and the sessions hanging off
+      // them were not being checked at all. The result, seen live at the
+      // conference: a speaker recommended with "catch them at" a talk that
+      // finished that morning. The person is still worth meeting; the finished
+      // talk is not a way to find them.
+      //
+      // A link with no end time (a booth, another person) is not expired, it
+      // is not time-bound, and stays.
       const linked: LinkedEntity[] = [
         ...(row?.outgoing ?? []).map((link) => toLinked(link.to, link.kind)),
         ...(row?.incoming ?? []).map((link) => toLinked(link.from, link.kind)),
-      ];
+      ].filter((link) => isStillToCome(link.endsAt, now));
 
       return {
         id: candidate.id,
