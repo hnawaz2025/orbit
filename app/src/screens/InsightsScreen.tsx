@@ -162,9 +162,15 @@ export function InsightsScreen() {
           {data.unmet.map((q) => (
             <View key={q.askedAt} style={styles.unmetCard}>
               <Text style={styles.unmetText}>“{q.text}”</Text>
-              <Text style={styles.unmetScore}>
-                {q.bestScore === 0 ? "nothing matched at all" : `closest match scored ${q.bestScore}`}
-              </Text>
+              {/* The similarity score is not shown. It is the reason these are
+                  in this list and in this order, but 0.347 means nothing to
+                  someone planning a programme -- it reads as debug output
+                  left on the screen, and invites an argument about the number
+                  rather than about the question. The ordering still carries
+                  it. A total miss is still worth saying, in words. */}
+              {q.bestScore === 0 ? (
+                <Text style={styles.unmetScore}>nothing matched at all</Text>
+              ) : null}
             </View>
           ))}
         </View>
