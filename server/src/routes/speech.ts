@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { transcribe } from "../ai/llm";
 import { AppError } from "../errors";
+import { loadEnv } from "../env";
 import { asyncHandler } from "../middleware/asyncHandler";
 
 // Audio in, text out. One direction only -- nothing here speaks back.
@@ -9,6 +10,8 @@ import { asyncHandler } from "../middleware/asyncHandler";
 // Audio arrives base64-encoded inside JSON rather than as multipart, which is
 // what the 15mb body limit in index.ts is sized for: base64 inflates a payload
 // by roughly a third.
+const env = loadEnv();
+
 export const speechRouter = Router();
 
 const transcribeSchema = z.object({
@@ -19,6 +22,14 @@ const transcribeSchema = z.object({
 speechRouter.post(
   "/transcribe",
   asyncHandler(async (req, res) => {
+    // Same off switch as /ask: no key, no meter. See env.ts.
+    if (!env.OPENAI_API_KEY) {
+      throw new AppError(
+        "Orbit is closed for this event. Voice input is switched off.",
+        { statusCode: 503, code: "ASKING_CLOSED" }
+      );
+    }
+
     const { audio, mimeType } = transcribeSchema.parse(req.body);
     const buffer = Buffer.from(audio, "base64");
 

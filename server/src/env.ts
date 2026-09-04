@@ -17,7 +17,20 @@ const baseSchema = z.object({
   // OpenAI covers two unrelated jobs: embeddings for retrieval, and Whisper
   // for the voice input. Both are required -- typing a paragraph one-handed
   // in a conference hallway is exactly the friction voice exists to remove.
-  OPENAI_API_KEY: z.string().min(1, "OPENAI_API_KEY is required (embeddings + Whisper)"),
+  /**
+   * Absent means the asking half of Orbit is closed.
+   *
+   * Every model call Orbit makes costs money against this key, and the /ask
+   * endpoint is necessarily unauthenticated -- the whole product is "open it
+   * in a hallway and ask something". Once an event is over, that is an open
+   * meter attached to a page anyone can still load.
+   *
+   * So absence is a supported state rather than a misconfiguration: /ask and
+   * /speech decline politely, and everything that costs nothing -- browsing
+   * the programme, the organiser aggregate -- keeps working. Taking the key
+   * out of the environment is the off switch, and it needs no deploy.
+   */
+  OPENAI_API_KEY: z.string().optional(),
   EMBEDDING_MODEL: z.string().default("text-embedding-3-small"),
 
   /**

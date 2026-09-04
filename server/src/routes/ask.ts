@@ -4,6 +4,7 @@ import { z } from "zod";
 import { PASS_TIERS, type AskResponse, type LinkedEntity, type RecommendedEntity } from "@orbit/shared";
 import { embed } from "../ai/llm";
 import { prisma } from "../db";
+import { loadEnv } from "../env";
 import { AppError } from "../errors";
 import { affiliatedEntityIds, findOrganisations, knownOrganisations } from "../match/affiliation";
 import { extractFacets, embeddingTextForQuery } from "../match/facets";
@@ -15,6 +16,8 @@ import { retrieveCandidates } from "../match/retrieve";
 import { normaliseLevel, preferredKinds } from "../match/types";
 import { asyncHandler } from "../middleware/asyncHandler";
 import type { DeviceRequest } from "../middleware/device";
+
+const env = loadEnv();
 
 export const askRouter = Router();
 
@@ -71,6 +74,16 @@ askRouter.post(
     // Facets and the query embedding are independent of each other only in
     // principle -- the embedding text is built *from* the facets, so this stays
     // sequential.
+    // The off switch. See the note on OPENAI_API_KEY in env.ts: no key means
+    // the event is over and the meter is closed, which is a different thing
+    // from a broken server and is worth saying differently.
+    if (!env.OPENAI_API_KEY) {
+      throw new AppError(
+        "Orbit is closed for this event. The programme is still here to browse, but asking new questions is switched off.",
+        { statusCode: 503, code: "ASKING_CLOSED" }
+      );
+    }
+
     const facets = await extractFacets(text);
     const [queryVector] = await embed([embeddingTextForQuery(text, facets)]);
 

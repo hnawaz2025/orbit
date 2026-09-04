@@ -11,10 +11,12 @@
 # retry underneath is what makes that acceptable.
 name: keep-warm
 
+# The schedule is switched off. It existed to keep Neon awake for the two days
+# of API World 2026; past that it wakes a database nobody is querying, every
+# five minutes, forever. Re-enable by uncommenting for the next event.
 on:
-  schedule:
-    - cron: "*/5 * * * *"
-  # So it can be switched on by hand on the morning of the event.
+  # schedule:
+  #   - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:
