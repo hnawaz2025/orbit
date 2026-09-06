@@ -50,7 +50,26 @@ function featherlessClient(): OpenAI {
 // separate from the Featherless client because it is a different account with
 // a different concurrency ceiling -- one of the reasons to move the
 // user-facing calls here at all.
-const embeddingClient = new OpenAI({ apiKey: env.OPENAI_API_KEY, timeout: 60_000 });
+/**
+ * Built on first use, not at import.
+ *
+ * The OpenAI SDK throws from its own constructor when the key is missing, so
+ * building this eagerly meant that removing OPENAI_API_KEY -- the documented
+ * way to close the asking half after an event -- crashed the whole function
+ * on import instead. Every route died, including the ones that never call a
+ * model and cost nothing to serve.
+ */
+let cachedOpenAi: OpenAI | null = null;
+function openAiClient(): OpenAI {
+  if (!env.OPENAI_API_KEY) {
+    throw new Error(
+      "OPENAI_API_KEY is not set — the asking half of Orbit is switched off. " +
+        "Set the key to turn it back on."
+    );
+  }
+  cachedOpenAi ??= new OpenAI({ apiKey: env.OPENAI_API_KEY, timeout: 60_000 });
+  return cachedOpenAi;
+}
 
 export type Provider = "featherless" | "openai";
 
@@ -110,7 +129,7 @@ export async function complete({
   // is not supported with this model" -- while Featherless only understands
   // that name. Sending the wrong one is a 400, not a degraded answer, so this
   // is not a preference.
-  const response = await (usingOpenAi ? embeddingClient : featherlessClient()).chat.completions.create(
+  const response = await (usingOpenAi ? openAiClient() : featherlessClient()).chat.completions.create(
     usingOpenAi
       ? {
           model: model ?? env.REASONING_MODEL,
@@ -151,7 +170,7 @@ export async function complete({
 
 export async function embed(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
-  const response = await embeddingClient.embeddings.create({
+  const response = await openAiClient().embeddings.create({
     model: env.EMBEDDING_MODEL,
     input: texts,
   });
@@ -182,7 +201,7 @@ export async function transcribe({ audio, mimeType }: TranscribeInput): Promise<
   const extension = mimeType.split("/")[1]?.split(";")[0] ?? "m4a";
   const file = await toFile(audio, `speech.${extension}`);
 
-  const result = await embeddingClient.audio.transcriptions.create({
+  const result = await openAiClient().audio.transcriptions.create({
     file,
     model: "whisper-1",
     // Biases the decoder toward the vocabulary an attendee will actually use.
